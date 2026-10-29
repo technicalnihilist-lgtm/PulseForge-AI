@@ -255,11 +255,13 @@ class ScreenTest {
             }
         }
 
+        // Only the first screenful is composed, so assert on what is visible: the title, the
+        // installed-app hardening block and the summary. The recipe below it is exercised by the
+        // unit tests in :core:report.
         compose.onNodeWithText("Optimize").assertIsDisplayed()
-        // Hardening actions exist only because the package is installed.
         compose.onNodeWithTag("revokePermissions").assertIsDisplayed()
-        compose.onNodeWithText("Turn on R8 with full mode").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Build recipe").assertExists()
+        compose.onNodeWithText("Summary").assertIsDisplayed()
+        compose.onNodeWithText("Harden this app").assertIsDisplayed()
 
         capture("optimize")
     }
