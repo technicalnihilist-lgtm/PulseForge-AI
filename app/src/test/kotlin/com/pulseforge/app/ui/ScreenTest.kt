@@ -1,13 +1,11 @@
 package com.pulseforge.app.ui
 
 import android.graphics.Bitmap
-import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.captureToImage
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
@@ -40,7 +38,7 @@ import java.io.FileOutputStream
 class ScreenTest {
 
     @get:Rule
-    val compose = createComposeRule()
+    val compose = createAndroidComposeRule<ComponentActivity>()
 
     private val report: ScanReport by lazy { TestReportFactory.report() }
     private val scan: ScanEntity by lazy { TestReportFactory.scanEntity(report) }
@@ -50,24 +48,30 @@ class ScreenTest {
     }
 
     /**
-     * Renders the current screen to a PNG.
+     * Renders the current screen to a PNG by drawing the activity's decor view.
      *
-     * Compose's test clock auto-advances, and progress indicators animate forever, so the clock is
-     * driven manually for the capture. A capture failure is reported but never fails the test: the
-     * behavioural assertions above it are what the suite guarantees.
+     * Drawing the view avoids Compose's idle-wait, which never completes on screens that show an
+     * indeterminate progress indicator. A capture failure is reported but never fails the test: the
+     * behavioural assertions are what the suite guarantees.
      */
     private fun capture(name: String) {
         try {
-            compose.mainClock.autoAdvance = false
-            compose.mainClock.advanceTimeByFrame()
-            val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
+            compose.mainClock.advanceTimeBy(64)
+            val activity = compose.activity
+            val view = activity.window.decorView
+            val width = if (view.width > 0) view.width else 1080
+            val height = if (view.height > 0) view.height else 2280
+            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val canvas = android.graphics.Canvas(bitmap)
+            activity.runOnUiThread { view.draw(canvas) }
             FileOutputStream(File(screenshotDir, "$name.png")).use {
                 bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
             }
-            compose.mainClock.autoAdvance = true
             assertTrue("screenshot $name is empty", bitmap.width > 0 && bitmap.height > 0)
         } catch (e: Throwable) {
-            compose.mainClock.autoAdvance = true
+            FileOutputStream(File(screenshotDir, "$name.error.txt")).use {
+                it.write("${e::class.simpleName}: ${e.message}".toByteArray())
+            }
             println("screenshot '$name' could not be captured: ${e::class.simpleName}: ${e.message}")
         }
     }

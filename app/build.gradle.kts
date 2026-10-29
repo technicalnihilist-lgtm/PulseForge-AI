@@ -88,6 +88,14 @@ android {
     }
 }
 
+// The Compose test manifest (which declares the host ComponentActivity) is a debug-only
+// dependency, so the UI tests only make sense for the debug variant.
+androidComponents {
+    beforeVariants(selector().withBuildType("release")) { variant ->
+        (variant as? com.android.build.api.variant.HasUnitTestBuilder)?.enableUnitTest = false
+    }
+}
+
 dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:apk"))
