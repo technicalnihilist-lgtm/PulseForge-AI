@@ -38,9 +38,9 @@ regenerated on every CI run and published with the build.
 |---|---|
 | ![Security findings](screenshots/report-security.png) | ![Assistant](screenshots/assistant.png) |
 
-| Installed apps |
-|---|
-| ![Installed apps](screenshots/installed-apps.png) |
+| Installed apps | Optimize |
+|---|---|
+| ![Installed apps](screenshots/installed-apps.png) | ![Optimize](screenshots/optimize.png) |
 
 ![Dashboard in dark theme](screenshots/dashboard-dark.png)
 
