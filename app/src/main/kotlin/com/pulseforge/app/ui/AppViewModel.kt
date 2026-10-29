@@ -13,7 +13,9 @@ import com.pulseforge.data.settings.ThemeMode
 import com.pulseforge.model.InstalledApp
 import com.pulseforge.model.ScanReport
 import com.pulseforge.model.SourceReview
+import com.pulseforge.performance.BuildRecipeGenerator
 import com.pulseforge.performance.OptimizationPlanner
+import com.pulseforge.performance.OptimizationRecipe
 import com.pulseforge.performance.PlannedAction
 import com.pulseforge.performance.SourceReviewEngine
 import kotlinx.coroutines.Dispatchers
@@ -165,6 +167,43 @@ class AppViewModel(private val graph: AppGraph) : ViewModel() {
         facts = report.apk,
         userOwnsSource = settings.value.userOwnsSource
     )
+
+    fun recipeFor(report: ScanReport): OptimizationRecipe =
+        BuildRecipeGenerator.generate(report, settings.value.userOwnsSource)
+
+    fun planTextFor(report: ScanReport): String =
+        OptimizationPlanWriter.write(report, planFor(report), recipeFor(report))
+
+    /** True when the report's package is actually installed, so hardening actions make sense. */
+    fun isInstalled(packageName: String?): Boolean {
+        if (packageName.isNullOrBlank()) return false
+        return runCatching {
+            graph.installedApps.packageInfo(packageName) != null
+        }.getOrDefault(false)
+    }
+
+    fun uninstall(context: Context, packageName: String) {
+        val intent = android.content.Intent(
+            android.content.Intent.ACTION_DELETE,
+            android.net.Uri.parse("package:$packageName")
+        ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        runCatching { context.startActivity(intent) }
+            .onFailure { _message.value = "No uninstall screen is available for $packageName" }
+    }
+
+    fun openBatterySettings(context: Context) {
+        val intent = android.content.Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        runCatching { context.startActivity(intent) }
+            .onFailure {
+                runCatching {
+                    context.startActivity(
+                        android.content.Intent(android.provider.Settings.ACTION_SETTINGS)
+                            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                }
+            }
+    }
 
     fun ask(question: String, report: ScanReport): AssistantAnswer =
         graph.assistant.answer(question, report, planFor(report))

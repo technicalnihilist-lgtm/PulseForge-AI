@@ -14,10 +14,12 @@ import com.pulseforge.ai.OfflineAssistant
 import com.pulseforge.app.ui.screens.AssistantScreen
 import com.pulseforge.app.ui.screens.DashboardScreen
 import com.pulseforge.app.ui.screens.InstalledAppsScreen
+import com.pulseforge.app.ui.screens.OptimizeScreen
 import com.pulseforge.app.ui.screens.ReportScreen
 import com.pulseforge.data.db.ScanEntity
 import com.pulseforge.model.InstalledApp
 import com.pulseforge.model.ScanReport
+import com.pulseforge.performance.BuildRecipeGenerator
 import com.pulseforge.performance.OptimizationPlanner
 import com.pulseforge.ui.theme.PulseForgeTheme
 import org.junit.Assert.assertTrue
@@ -230,6 +232,36 @@ class ScreenTest {
         org.junit.Assert.assertEquals("com.example.social", scanned)
 
         capture("installed-apps")
+    }
+
+    @Test
+    fun optimizeScreenShowsRecipeAndHardeningActions() {
+        val plan = OptimizationPlanner.plan(report.findings, report.performance, report.apk, userOwnsSource = true)
+        val recipe = BuildRecipeGenerator.generate(report, userOwnsSource = true)
+
+        compose.setContent {
+            PulseForgeTheme(darkTheme = false) {
+                OptimizeScreen(
+                    report = report,
+                    plan = plan,
+                    recipe = recipe,
+                    installedPackage = "com.pulseforge.fixture.insecure",
+                    onBack = {},
+                    onOpenAppSettings = {},
+                    onOpenBatterySettings = {},
+                    onUninstall = {},
+                    planText = { "plan" }
+                )
+            }
+        }
+
+        compose.onNodeWithText("Optimize").assertIsDisplayed()
+        // Hardening actions exist only because the package is installed.
+        compose.onNodeWithTag("revokePermissions").assertIsDisplayed()
+        compose.onNodeWithText("Turn on R8 with full mode").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Build recipe").assertExists()
+
+        capture("optimize")
     }
 
     @Test

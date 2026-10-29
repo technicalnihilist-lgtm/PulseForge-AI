@@ -33,6 +33,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -80,7 +81,8 @@ fun ReportScreen(
     candidates: List<ScanEntity>,
     onLoadReport: suspend (String) -> ScanReport?,
     onBack: () -> Unit,
-    onAsk: () -> Unit
+    onAsk: () -> Unit,
+    onOptimize: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -149,6 +151,9 @@ fun ReportScreen(
                     IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") }
                 },
                 actions = {
+                    TextButton(onClick = onOptimize, modifier = Modifier.testTag("openOptimize")) {
+                        Text("Optimize")
+                    }
                     IconButton(onClick = onAsk) { Icon(Icons.Filled.Face, contentDescription = "Ask the assistant") }
                     Box {
                         IconButton(onClick = { exportMenuOpen = true }, modifier = Modifier.testTag("exportMenu")) {

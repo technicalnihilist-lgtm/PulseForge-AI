@@ -38,6 +38,7 @@ import com.pulseforge.app.ui.screens.DashboardScreen
 import com.pulseforge.app.ui.screens.HistoryScreen
 import com.pulseforge.app.ui.screens.ImportScreen
 import com.pulseforge.app.ui.screens.InstalledAppsScreen
+import com.pulseforge.app.ui.screens.OptimizeScreen
 import com.pulseforge.app.ui.screens.ReportScreen
 import com.pulseforge.app.ui.screens.ScanScreen
 import com.pulseforge.app.ui.screens.SettingsScreen
@@ -54,10 +55,12 @@ object Routes {
     const val APPS = "apps"
     const val SCAN = "scan/{scanId}"
     const val REPORT = "report/{scanId}"
+    const val OPTIMIZE = "optimize/{scanId}"
     const val ASSISTANT = "assistant/{scanId}"
 
     fun scan(id: String) = "scan/$id"
     fun report(id: String) = "report/$id"
+    fun optimize(id: String) = "optimize/$id"
     fun assistant(id: String) = "assistant/$id"
 }
 
@@ -185,7 +188,26 @@ fun AppRoot(viewModel: AppViewModel, navController: NavHostController = remember
                     candidates = scans.filter { it.status == "COMPLETED" && it.id != scanId },
                     onLoadReport = { viewModel.loadReport(it) },
                     onBack = { navController.popBackStack() },
-                    onAsk = { navController.navigate(Routes.assistant(scanId)) }
+                    onAsk = { navController.navigate(Routes.assistant(scanId)) },
+                    onOptimize = { navController.navigate(Routes.optimize(scanId)) }
+                )
+            }
+            composable(Routes.OPTIMIZE) { entry ->
+                val scanId = entry.arguments?.getString("scanId").orEmpty()
+                var report by remember(scanId) { mutableStateOf<ScanReport?>(null) }
+                LaunchedEffect(scanId) { report = viewModel.loadReport(scanId) }
+                val current = report
+                OptimizeScreen(
+                    report = current,
+                    plan = remember(current) { current?.let { viewModel.planFor(it) } ?: emptyList() },
+                    recipe = remember(current) { current?.let { viewModel.recipeFor(it) } },
+                    installedPackage = current?.apk?.manifest?.packageName
+                        ?.takeIf { viewModel.isInstalled(it) },
+                    onBack = { navController.popBackStack() },
+                    onOpenAppSettings = { viewModel.openAppSettings(context, it) },
+                    onOpenBatterySettings = { viewModel.openBatterySettings(context) },
+                    onUninstall = { viewModel.uninstall(context, it) },
+                    planText = { current?.let { viewModel.planTextFor(it) } ?: "" }
                 )
             }
             composable(Routes.HISTORY) {

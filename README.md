@@ -18,7 +18,7 @@ what a file simply cannot tell you. It never installs, loads or executes the APK
 | **Parsing** | Binary XML (AXML) manifest parser, DEX header/string/type/method/class tables, `resources.arsc` string pool, APK Signing Block (v2/v3/v3.1) + v1 JAR certs, image headers (PNG/JPEG/WebP/GIF/BMP) |
 | **Security** | 26 rules mapped to OWASP MASVS and CWE, each with severity, confidence, evidence, remediation and a false-positive note |
 | **Performance** | Size composition, SHA-256 duplicate detection, oversized-image detection, decoded-bitmap memory estimate, and an explicit list of metrics a static APK cannot provide |
-| **Optimization** | Prioritised action plan; source-level diffs + test snippets for files you own; report-only guidance for third-party APKs |
+| **Optimization** | An Optimize screen per scan: prioritised actions, a paste-ready build recipe (R8, resource shrinking, ABI splits, WebP/asset pipeline, Baseline Profiles) conditioned on this report's own evidence, Markdown export, and system-level hardening actions when the app is installed |
 | **Privacy** | Permission groups, dangerous/restricted permissions, exported-component count, tracker-class signals |
 | **Reports** | PDF, JSON and Markdown export through SAF; before/after comparison of two scans |
 | **Assistant** | Deterministic, evidence-grounded explainer that separates facts, hypotheses and unknowns. No model is bundled and none is pretended |
@@ -80,7 +80,7 @@ Full setup, release signing and reproducible-build notes: [`docs/BUILD.md`](docs
 |---|---|---|
 | APK you built | Full static analysis, prioritised fixes, R8/baseline-profile/asset guidance, before/after comparison of two scans | Build the optimized APK for you — that is your build pipeline's job |
 | APK from elsewhere | Full static analysis and a report-only optimization plan | Rebuild, patch or re-sign someone else's APK |
-| App installed on the phone | Same analysis, using the installed APK when readable, else manifest metadata | Modify the installed app. Android forbids rewriting or re-signing it, and the change would break its signature. The report ends with the system App-info screen, where you can revoke permissions or uninstall |
+| App installed on the phone | Same analysis (installed APK when readable, else manifest metadata) plus an Optimize screen with the actions Android permits on someone else's app: review/revoke permissions, restrict background battery use, uninstall | Modify the installed app. Android forbids rewriting or re-signing it, and the change would break its signature |
 
 ## Honest limitations (read this)
 
