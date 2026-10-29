@@ -64,9 +64,10 @@ object OptimizationPlanWriter {
                 appendLine("### ${section.title}")
                 appendLine()
                 appendLine(section.rationale)
-                if (section.estimatedSavingBytes != null && section.estimatedSavingBytes > 0) {
+                val saving = section.estimatedSavingBytes
+                if (saving != null && saving > 0) {
                     appendLine()
-                    appendLine("Estimated saving: ${formatBytes(section.estimatedSavingBytes)} (estimate).")
+                    appendLine("Estimated saving: ${formatBytes(saving)} (estimate).")
                 }
                 appendLine()
                 appendLine("Target: `${section.target}`")
