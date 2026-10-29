@@ -3,7 +3,10 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <!--
-      PulseForge AI requests no permissions at all.
+      PulseForge AI requests exactly one permission, and it is not a data permission:
+      - QUERY_ALL_PACKAGES lets the app list the packages installed on the device, which is required
+        on Android 11+ for the "Installed apps" screen. It grants visibility of package metadata
+        only; it does not grant access to any app's data.
       - Files are read through the Storage Access Framework (no storage permission needed).
       - The app has no INTERNET permission, so no APK, source file or report can be uploaded.
       - WorkManager normally contributes WAKE_LOCK, ACCESS_NETWORK_STATE, RECEIVE_BOOT_COMPLETED and
@@ -11,6 +14,9 @@
         rescheduling, so those are removed below. Trade-off: a scan interrupted by a reboot is not
         resumed automatically; it stays in history as failed and can be re-run.
     -->
+    <uses-permission
+        android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
     <uses-permission android:name="android.permission.WAKE_LOCK" tools:node="remove" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" tools:node="remove" />

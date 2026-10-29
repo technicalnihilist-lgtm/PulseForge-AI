@@ -83,8 +83,9 @@ fun DashboardScreen(
             ) {
                 item {
                     InfoBanner(
-                        text = "Everything runs on this device. PulseForge requests no permissions and has no " +
-                            "INTERNET access, so no APK, source file, secret or report can leave your phone.",
+                        text = "Everything runs on this device. PulseForge has no INTERNET access, so no APK, " +
+                            "source file, secret or report can leave your phone. The only permission it asks " +
+                            "for is QUERY_ALL_PACKAGES, to list installed apps.",
                         tone = BannerTone.PRIVACY
                     )
                 }

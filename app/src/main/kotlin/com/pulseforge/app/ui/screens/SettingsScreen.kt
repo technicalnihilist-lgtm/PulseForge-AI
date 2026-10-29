@@ -127,8 +127,9 @@ fun SettingsScreen(
                     }
                     Spacer(Modifier.height(8.dp))
                     InfoBanner(
-                        text = "PulseForge requests no permissions and has no INTERNET access. Reports, APKs and " +
-                            "settings never leave the device unless you export a file yourself.",
+                        text = "PulseForge has no INTERNET access. Reports, APKs and settings never leave the device " +
+                            "unless you export a file yourself. It asks for one permission, " +
+                            "QUERY_ALL_PACKAGES, so it can list the apps installed on the phone.",
                         tone = BannerTone.PRIVACY
                     )
                 }

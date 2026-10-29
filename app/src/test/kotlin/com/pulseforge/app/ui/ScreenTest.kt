@@ -13,8 +13,10 @@ import androidx.test.core.app.ApplicationProvider
 import com.pulseforge.ai.OfflineAssistant
 import com.pulseforge.app.ui.screens.AssistantScreen
 import com.pulseforge.app.ui.screens.DashboardScreen
+import com.pulseforge.app.ui.screens.InstalledAppsScreen
 import com.pulseforge.app.ui.screens.ReportScreen
 import com.pulseforge.data.db.ScanEntity
+import com.pulseforge.model.InstalledApp
 import com.pulseforge.model.ScanReport
 import com.pulseforge.performance.OptimizationPlanner
 import com.pulseforge.ui.theme.PulseForgeTheme
@@ -149,6 +151,85 @@ class ScreenTest {
         compose.onNodeWithTag("assistantSend").performClick()
         compose.onNodeWithText("What should I fix first?").assertIsDisplayed()
         capture("assistant")
+    }
+
+    @Test
+    fun installedAppsListShowsRiskAndStartsAScan() {
+        var scanned: String? = null
+        val apps = listOf(
+            InstalledApp(
+                packageName = "com.example.social",
+                label = "Social App",
+                versionName = "4.2.0",
+                versionCode = 420,
+                minSdk = 26,
+                targetSdk = 33,
+                isSystemApp = false,
+                isDebuggable = false,
+                installer = "com.android.vending",
+                apkPath = "/data/app/~~a/com.example.social-1/base.apk",
+                apkSizeBytes = 48_000_000,
+                apkReadable = true,
+                permissionCount = 14,
+                dangerousPermissionCount = 9,
+                exportedComponentCount = 7
+            ),
+            InstalledApp(
+                packageName = "com.example.debug",
+                label = "Debug Build",
+                versionName = "1.0.0",
+                versionCode = 1,
+                minSdk = 24,
+                targetSdk = 30,
+                isDebuggable = true,
+                apkPath = "/data/app/~~b/com.example.debug-1/base.apk",
+                apkSizeBytes = 12_000_000,
+                apkReadable = true,
+                permissionCount = 3,
+                dangerousPermissionCount = 1,
+                exportedComponentCount = 2
+            ),
+            InstalledApp(
+                packageName = "com.vendor.locked",
+                label = "Locked App",
+                versionName = "2.1",
+                versionCode = 21,
+                isSystemApp = false,
+                apkPath = "/data/app/~~c/com.vendor.locked-1/base.apk",
+                apkSizeBytes = 9_000_000,
+                apkReadable = false,
+                permissionCount = 5,
+                dangerousPermissionCount = 2,
+                exportedComponentCount = 1
+            )
+        )
+
+        compose.setContent {
+            PulseForgeTheme(darkTheme = false) {
+                InstalledAppsScreen(
+                    apps = apps,
+                    loading = false,
+                    includeSystem = true,
+                    onToggleSystem = {},
+                    onRefresh = {},
+                    onScan = { scanned = it.packageName },
+                    onOpenSettings = {}
+                )
+            }
+        }
+
+        compose.onNodeWithText("Social App").assertIsDisplayed()
+        compose.onNodeWithText("Debug Build").assertIsDisplayed()
+        compose.onNodeWithText("Locked App").assertIsDisplayed()
+        // The unreadable-APK case must say so rather than implying a full scan.
+        compose.onNodeWithText(
+            "APK not readable on this device - the scan will cover manifest metadata only."
+        ).assertIsDisplayed()
+
+        compose.onNodeWithTag("scan_com.example.social").performClick()
+        org.junit.Assert.assertEquals("com.example.social", scanned)
+
+        capture("installed-apps")
     }
 
     @Test

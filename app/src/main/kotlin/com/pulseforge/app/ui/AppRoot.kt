@@ -5,6 +5,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -21,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -35,6 +37,7 @@ import com.pulseforge.app.ui.screens.AssistantScreen
 import com.pulseforge.app.ui.screens.DashboardScreen
 import com.pulseforge.app.ui.screens.HistoryScreen
 import com.pulseforge.app.ui.screens.ImportScreen
+import com.pulseforge.app.ui.screens.InstalledAppsScreen
 import com.pulseforge.app.ui.screens.ReportScreen
 import com.pulseforge.app.ui.screens.ScanScreen
 import com.pulseforge.app.ui.screens.SettingsScreen
@@ -48,6 +51,7 @@ object Routes {
     const val SETTINGS = "settings"
     const val ABOUT = "about"
     const val SOURCE = "source"
+    const val APPS = "apps"
     const val SCAN = "scan/{scanId}"
     const val REPORT = "report/{scanId}"
     const val ASSISTANT = "assistant/{scanId}"
@@ -61,6 +65,7 @@ private data class Destination(val route: String, val label: String, val icon: I
 
 private val bottomDestinations = listOf(
     Destination(Routes.DASHBOARD, "Dashboard", Icons.Filled.Home),
+    Destination(Routes.APPS, "Apps", Icons.Filled.Search),
     Destination(Routes.HISTORY, "History", Icons.Filled.List),
     Destination(Routes.ASSISTANT, "Assistant", Icons.Filled.Face),
     Destination(Routes.SETTINGS, "Settings", Icons.Filled.Settings)
@@ -68,6 +73,7 @@ private val bottomDestinations = listOf(
 
 @Composable
 fun AppRoot(viewModel: AppViewModel, navController: NavHostController = rememberNavController()) {
+    val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val message by viewModel.message.collectAsStateWithLifecycle()
     val scans by viewModel.scans.collectAsStateWithLifecycle()
@@ -123,6 +129,30 @@ fun AppRoot(viewModel: AppViewModel, navController: NavHostController = remember
                     onOpenScan = { navController.navigate(Routes.scan(it)) },
                     onOpenSourceReview = { navController.navigate(Routes.SOURCE) },
                     onOpenAbout = { navController.navigate(Routes.ABOUT) }
+                )
+            }
+            composable(Routes.APPS) {
+                val installed by viewModel.installedApps.collectAsStateWithLifecycle()
+                val appsLoading by viewModel.appsLoading.collectAsStateWithLifecycle()
+                val startedScan by viewModel.startedScan.collectAsStateWithLifecycle()
+                var includeSystem by remember { mutableStateOf(true) }
+
+                LaunchedEffect(includeSystem) { viewModel.loadInstalledApps(includeSystem) }
+                LaunchedEffect(startedScan) {
+                    startedScan?.let { scanId ->
+                        viewModel.clearStartedScan()
+                        navController.navigate(Routes.scan(scanId))
+                    }
+                }
+
+                InstalledAppsScreen(
+                    apps = installed,
+                    loading = appsLoading,
+                    includeSystem = includeSystem,
+                    onToggleSystem = { includeSystem = it },
+                    onRefresh = { viewModel.loadInstalledApps(includeSystem) },
+                    onScan = { viewModel.scanInstalledApp(it) },
+                    onOpenSettings = { viewModel.openAppSettings(context, it) }
                 )
             }
             composable(Routes.IMPORT) {

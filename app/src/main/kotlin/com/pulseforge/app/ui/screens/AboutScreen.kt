@@ -98,8 +98,8 @@ fun AboutScreen(viewModel: AppViewModel, onBack: () -> Unit) {
 
                 SectionCard(title = "Privacy") {
                     Text(
-                        "The app requests no permissions and has no INTERNET permission, so it cannot send data " +
-                            "anywhere. APKs are copied into private storage for analysis and deleted when you delete " +
+                        "The app has no INTERNET permission, so it cannot send data anywhere. Its only requested " +
+                            "permission is QUERY_ALL_PACKAGES, used to list installed apps. APKs are copied into private storage for analysis and deleted when you delete " +
                             "the scan. Secrets found in an APK are masked before they reach a report, and a final " +
                             "redaction pass runs over every report.",
                         style = MaterialTheme.typography.bodyMedium

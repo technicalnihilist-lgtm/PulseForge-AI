@@ -5,6 +5,8 @@ import com.pulseforge.ai.OfflineAssistant
 import com.pulseforge.app.ai.AssetLocalModel
 import com.pulseforge.data.ScanRepository
 import com.pulseforge.data.db.PulseForgeDatabase
+import com.pulseforge.data.apps.InstalledAppScanner
+import com.pulseforge.data.apps.InstalledAppsRepository
 import com.pulseforge.data.file.FileVault
 import com.pulseforge.data.settings.SettingsRepository
 import com.pulseforge.data.work.ScanScheduler
@@ -26,5 +28,7 @@ class AppGraph(context: Context) {
     val scheduler by lazy { ScanScheduler(appContext) }
     val pipeline by lazy { ScanPipeline(appVersion = BuildConfig.VERSION_NAME) }
     val assistant by lazy { OfflineAssistant(AssetLocalModel(appContext)) }
+    val installedApps by lazy { InstalledAppsRepository(appContext) }
+    val installedAppScanner by lazy { InstalledAppScanner(appContext, installedApps, pipeline) }
     val sourceReviewEngine get() = SourceReviewEngine
 }

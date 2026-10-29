@@ -68,13 +68,17 @@ jobs:
         run: bash ./gradlew :app:lintDebug --stacktrace
         continue-on-error: true
 
-      - name: Verify the APK declares no INTERNET permission
+      - name: Verify the declared permission set
         run: |
           APK=app/build/outputs/apk/debug/app-debug.apk
           "$ANDROID_HOME/build-tools/34.0.0/aapt2" dump permissions "$APK" > permissions.txt
           cat permissions.txt
           if grep -q "android.permission.INTERNET" permissions.txt; then
             echo "::error::PulseForge must not request INTERNET"
+            exit 1
+          fi
+          if ! grep -q "android.permission.QUERY_ALL_PACKAGES" permissions.txt; then
+            echo "::error::QUERY_ALL_PACKAGES is required to list installed apps"
             exit 1
           fi
 

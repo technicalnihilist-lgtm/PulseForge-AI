@@ -47,6 +47,30 @@ class ScanRepository(private val dao: ScanDao, private val vault: FileVault) {
         return scanId to file
     }
 
+    /**
+     * Creates the history row for an installed app. The APK is not copied: it belongs to the other
+     * app and must not be duplicated, so [keptApkPath] stays null and nothing is deleted on removal.
+     */
+    suspend fun registerInstalledApp(app: com.pulseforge.model.InstalledApp): String {
+        val scanId = UUID.randomUUID().toString()
+        dao.insert(
+            ScanEntity(
+                id = scanId,
+                displayName = app.displayTitle,
+                packageName = app.packageName,
+                versionName = app.versionName,
+                status = ScanStatus.RUNNING.name,
+                stage = "QUEUED",
+                progress = 0f,
+                message = "Queued",
+                startedAtEpochMs = System.currentTimeMillis(),
+                fileSizeBytes = app.apkSizeBytes,
+                keptApkPath = null
+            )
+        )
+        return scanId
+    }
+
     suspend fun markCompleted(id: String, report: ScanReport, keptApkPath: String?) {
         val counts = report.counts
         dao.markCompleted(

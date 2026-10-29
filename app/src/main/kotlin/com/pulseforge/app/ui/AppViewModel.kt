@@ -10,6 +10,7 @@ import com.pulseforge.app.AppGraph
 import com.pulseforge.data.db.ScanEntity
 import com.pulseforge.data.settings.AppSettings
 import com.pulseforge.data.settings.ThemeMode
+import com.pulseforge.model.InstalledApp
 import com.pulseforge.model.ScanReport
 import com.pulseforge.model.SourceReview
 import com.pulseforge.performance.OptimizationPlanner
@@ -86,6 +87,70 @@ class AppViewModel(private val graph: AppGraph) : ViewModel() {
 
     fun clearMessage() {
         _message.value = null
+    }
+
+    // ------------------------------------------------------------------ installed apps
+
+    private val _installedApps = MutableStateFlow<List<InstalledApp>>(emptyList())
+    val installedApps: StateFlow<List<InstalledApp>> = _installedApps.asStateFlow()
+
+    private val _appsLoading = MutableStateFlow(false)
+    val appsLoading: StateFlow<Boolean> = _appsLoading.asStateFlow()
+
+    /** Set when a scan of an installed app has been registered, so the UI can navigate to it. */
+    private val _startedScan = MutableStateFlow<String?>(null)
+    val startedScan: StateFlow<String?> = _startedScan.asStateFlow()
+
+    fun loadInstalledApps(includeSystem: Boolean = true) {
+        viewModelScope.launch {
+            _appsLoading.value = true
+            runCatching { graph.installedApps.list(includeSystem) }
+                .onSuccess { _installedApps.value = it }
+                .onFailure { _message.value = "Could not list installed apps: ${it.message}" }
+            _appsLoading.value = false
+        }
+    }
+
+    fun clearStartedScan() {
+        _startedScan.value = null
+    }
+
+    /**
+     * Scans an app that is already installed.
+     *
+     * When the platform lets us read the APK, the full pipeline runs in the background worker.
+     * Otherwise the manifest-level report is built here (it is fast, a few PackageManager queries)
+     * and saved like any other scan.
+     */
+    fun scanInstalledApp(app: InstalledApp) {
+        viewModelScope.launch {
+            val scanId = withContext(Dispatchers.IO) { graph.repository.registerInstalledApp(app) }
+            val apkFile = withContext(Dispatchers.IO) { graph.installedApps.apkFile(app) }
+            if (apkFile != null) {
+                graph.scheduler.enqueue(scanId, apkFile, "${app.displayTitle}.apk", keepCopy = false)
+                _startedScan.value = scanId
+            } else {
+                runCatching {
+                    val report = graph.installedAppScanner.scan(app, null)
+                    graph.repository.markCompleted(scanId, report, null)
+                }.onFailure {
+                    graph.repository.markFailed(
+                        scanId,
+                        com.pulseforge.model.ScanStatus.FAILED,
+                        com.pulseforge.model.ScanErrorCode.INTERNAL_ERROR.name,
+                        it.message ?: "The installed app could not be analysed",
+                        "This app's metadata could not be read. Try importing its APK as a file instead."
+                    )
+                }
+                _startedScan.value = scanId
+            }
+        }
+    }
+
+    /** Opens the system App-info screen, where permissions can be revoked or the app uninstalled. */
+    fun openAppSettings(context: Context, packageName: String) {
+        runCatching { context.startActivity(graph.installedApps.appSettingsIntent(packageName)) }
+            .onFailure { _message.value = "No system settings screen is available for $packageName" }
     }
 
     // ------------------------------------------------------------------ reports

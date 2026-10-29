@@ -14,6 +14,7 @@
 | A malicious APK | Exploit the analyser: zip bombs, malformed AXML/DEX, huge entries, pathological string pools | Size caps, entry-count cap, per-entry caps, bounds-checked reads, tree-depth cap, `OutOfMemoryError` handling, no execution, no class loading |
 | A malicious document provider | Feed a non-APK or truncated file | ZIP magic check, structured `ApkException` codes, no partial state saved |
 | Another app on the device | Read PulseForge's data | App-private storage, `allowBackup=false`, backup/extraction rules exclude scans and the DB, no exported components |
+| The installed-app list | Reveal what the user has installed | The list is read on demand, never persisted to disk, and never leaves the device (no INTERNET permission). Scans of installed apps store the report, not a copy of the APK |
 | A network attacker | Exfiltrate APKs or reports | The app has **no INTERNET permission**; nothing can be sent |
 | A shoulder-surfer / screenshots | Read secrets from the screen | Secrets masked in evidence and reports; full values never rendered |
 | The analyst themselves | Over-trust a heuristic | Evidence type + confidence on every finding, false-positive note, explicit limitations, no "secure" claim |

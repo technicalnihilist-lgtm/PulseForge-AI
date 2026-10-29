@@ -14,6 +14,7 @@ what a file simply cannot tell you. It never installs, loads or executes the APK
 | Area | What PulseForge actually does |
 |---|---|
 | **APK import** | Storage Access Framework; the file is copied into app-private storage and analysed locally |
+| **Installed apps** | Lists apps on the device (QUERY_ALL_PACKAGES), scans one through the same pipeline when its APK is readable, and falls back to a manifest-level report when the platform blocks the file |
 | **Parsing** | Binary XML (AXML) manifest parser, DEX header/string/type/method/class tables, `resources.arsc` string pool, APK Signing Block (v2/v3/v3.1) + v1 JAR certs, image headers (PNG/JPEG/WebP/GIF/BMP) |
 | **Security** | 26 rules mapped to OWASP MASVS and CWE, each with severity, confidence, evidence, remediation and a false-positive note |
 | **Performance** | Size composition, SHA-256 duplicate detection, oversized-image detection, decoded-bitmap memory estimate, and an explicit list of metrics a static APK cannot provide |
@@ -69,6 +70,14 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 Full setup, release signing and reproducible-build notes: [`docs/BUILD.md`](docs/BUILD.md).
 
+## What "optimize" means for each source
+
+| Source | What PulseForge does | What it will not do |
+|---|---|---|
+| APK you built | Full static analysis, prioritised fixes, R8/baseline-profile/asset guidance, before/after comparison of two scans | Build the optimized APK for you — that is your build pipeline's job |
+| APK from elsewhere | Full static analysis and a report-only optimization plan | Rebuild, patch or re-sign someone else's APK |
+| App installed on the phone | Same analysis, using the installed APK when readable, else manifest metadata | Modify the installed app. Android forbids rewriting or re-signing it, and the change would break its signature. The report ends with the system App-info screen, where you can revoke permissions or uninstall |
+
 ## Honest limitations (read this)
 
 * **Static only.** Findings describe what the code *can* do. Nothing here proves runtime behaviour.
@@ -85,8 +94,10 @@ Details: [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md), [`docs/THREAT-MODEL.md`](
 
 ## Privacy by construction
 
-* The app requests **zero permissions** and removes the ones WorkManager would add. It has **no
-  INTERNET permission**, so it physically cannot upload an APK, source file, secret or report.
+* The app has **no INTERNET permission**, so it physically cannot upload an APK, source file,
+  secret or report. It requests exactly one permission, `QUERY_ALL_PACKAGES`, which grants package
+  metadata visibility so the "Installed apps" screen can list what is on the device — and removes
+  the ones WorkManager would add.
 * Secrets found in an APK are masked before they reach a report, and a final redaction pass
   (`ReportRedactor`) runs over every report as a safety net.
 * APK copies live in private storage and are deleted with the scan; `backup_rules.xml` and

@@ -40,8 +40,19 @@ swept on every app start.
 
 ## Permissions the app asks for
 
-None. Files are read through the Storage Access Framework, which grants per-file access without a
-storage permission.
+One: `QUERY_ALL_PACKAGES`.
+
+* **Why.** Android 11+ hides the installed-app list unless an app declares it. The "Installed apps"
+  screen is useless without it.
+* **What it grants.** Visibility of package metadata (labels, versions, requested permissions,
+  component names, APK path). It does **not** grant access to another app's data, files or network
+  traffic.
+* **What it does not grant.** There is still no `INTERNET` permission, no storage permission and no
+  location, contacts, camera or microphone access. Files come in through the Storage Access
+  Framework, which grants per-file access without a storage permission.
+* **Play policy.** `QUERY_ALL_PACKAGES` is a restricted permission; a security analyser that lists
+  installed apps for the user is one of the documented core use cases, and a Play listing must
+  declare it.
 
 ## Analytics, telemetry, crash reporting
 
