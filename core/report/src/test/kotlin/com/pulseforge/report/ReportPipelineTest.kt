@@ -95,7 +95,7 @@ class ReportPipelineTest {
         listOf(
             "# PulseForge AI", "## Summary", "## Security findings", "## Performance",
             "## Optimization plan", "## Privacy", "## Manifest", "## Signing", "## Limitations"
-        ).forEach { assertTrue("missing section: $section", md.contains(it)) }
+        ).forEach { section -> assertTrue("missing section: $section", md.contains(section)) }
         assertFalse(md.contains("AKIAIOSFODNN7EXAMPLE"))
         assertTrue(md.contains("How the security score was computed"))
     }
