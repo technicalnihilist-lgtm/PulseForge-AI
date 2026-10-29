@@ -57,7 +57,9 @@ class DeviceOverviewBuilderTest {
     fun `deductions are capped so the score never goes negative`() {
         val many = (1..10).map { app("com.debug.$it", debuggable = true, dangerous = 12, exported = 9) }
         val overview = DeviceOverviewBuilder.build(many, reclaimableBytes = 0)
-        assertEquals(0, overview.score)
+        // Caps: debug -40, permissions -30, exported surface -20 => 100 - 90 = 10.
+        assertEquals(10, overview.score)
+        assertEquals(-90, overview.breakdown.sumOf { it.points })
         // The cap is visible in the breakdown rather than hidden in the number.
         assertTrue(overview.breakdown.any { it.label.contains("Debuggable") && it.points == -40 })
         assertTrue(overview.breakdown.any { it.label.contains("permission") && it.points == -30 })
@@ -86,5 +88,14 @@ class DeviceOverviewBuilderTest {
         val overview = DeviceOverviewBuilder.build(listOf(app("com.a")), 0)
         assertTrue(overview.limitations.any { it.contains("cannot free other apps") })
         assertTrue(overview.categories.any { it.id == "storage" })
+    }
+
+    @Test
+    fun `a device beyond the caps clamps at zero`() {
+        val many = (1..40).map {
+            app("com.bad.$it", debuggable = true, dangerous = 15, exported = 12, targetSdk = 21)
+        }
+        val overview = DeviceOverviewBuilder.build(many, reclaimableBytes = 900L * 1024 * 1024)
+        assertEquals(0, overview.score)
     }
 }
