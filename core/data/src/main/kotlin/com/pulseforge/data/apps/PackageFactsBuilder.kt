@@ -40,7 +40,7 @@ object PackageFactsBuilder {
                         exported = it.exported,
                         permission = it.readPermission ?: it.writePermission,
                         launcherComponents = launcherComponents,
-                        authorities = it.authorities
+                        authorities = it.authority
                     )
                 )
             }
