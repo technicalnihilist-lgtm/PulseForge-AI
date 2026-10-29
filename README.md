@@ -43,6 +43,10 @@ regenerated on every CI run and published with the build.
 |---|---|
 | ![Installed apps](screenshots/installed-apps.png) | ![Optimize](screenshots/optimize.png) |
 
+| Optimize device |
+|---|
+| ![Optimize device](screenshots/device-overview.png) |
+
 ![Dashboard in dark theme](screenshots/dashboard-dark.png)
 
 ## Download a build
