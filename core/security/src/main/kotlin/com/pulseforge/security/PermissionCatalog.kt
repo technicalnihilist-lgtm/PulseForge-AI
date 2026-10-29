@@ -76,7 +76,10 @@ object PermissionCatalog {
 
     fun severityOf(permission: String): Severity = entries[permission]?.severity ?: Severity.INFO
 
-    fun isDangerous(permission: String): Boolean = (entries[permission] ?: return false).severity != Severity.INFO
+    fun isDangerous(permission: String): Boolean {
+        val entry = entries[permission] ?: return false
+        return entry.severity != Severity.INFO
+    }
 
     fun isRestricted(permission: String): Boolean = entries[permission]?.restrictedOnPlay == true
 
