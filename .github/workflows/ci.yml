@@ -6,6 +6,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -92,3 +95,34 @@ jobs:
           name: screenshots
           path: screenshots/*.png
           if-no-files-found: ignore
+
+  publish-artifacts:
+    name: Publish APK and screenshots to a release
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: pulseforge-apks
+          path: apks
+      - uses: actions/download-artifact@v4
+        with:
+          name: screenshots
+          path: screenshots
+        continue-on-error: true
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ci-latest
+          name: PulseForge AI - latest CI build
+          body: |
+            Automated build from commit ${{ github.sha }}.
+
+            * `app-debug.apk` - debug build, signed with the debug key
+            * `app-release.apk` - minified release build (debug key unless a release keystore is configured)
+            * `screenshots/` - rendered from the Compose screens by the Robolectric UI tests
+          files: |
+            apks/**/*.apk
+            screenshots/*.png
+          fail_on_unmatched_files: false
