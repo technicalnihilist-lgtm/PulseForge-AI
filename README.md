@@ -25,9 +25,30 @@ what a file simply cannot tell you. It never installs, loads or executes the APK
 
 ## Screenshots
 
-Screenshots are generated from the real Compose screens by the UI test suite
-(`./gradlew :app:testDebugUnitTest`, which writes `screenshots/*.png` under Robolectric).
-See `screenshots/` after a test run.
+These are rendered from the real Compose screens by the UI test suite (Robolectric, native
+graphics), using a report produced by the analyser on the synthetic `fixture-insecure.apk`. They are
+regenerated on every CI run and published with the build.
+
+| Dashboard (empty) | Report overview |
+|---|---|
+| ![Dashboard](screenshots/dashboard-empty.png) | ![Report overview](screenshots/report-overview.png) |
+
+| Security findings | Assistant |
+|---|---|
+| ![Security findings](screenshots/report-security.png) | ![Assistant](screenshots/assistant.png) |
+
+![Dashboard in dark theme](screenshots/dashboard-dark.png)
+
+## Download a build
+
+Every push to `main` builds and publishes the APKs and the screenshots to the
+[**ci-latest** release](https://github.com/technicalnihilist-lgtm/PulseForge-AI/releases/tag/ci-latest):
+
+* `app-debug.apk` — debug build, debug key
+* `app-release.apk` — minified release build (R8), debug key unless a release keystore is configured
+
+Builds from CI are signed with the debug key, which is fine for installing and testing but is **not**
+a production signature.
 
 ## Quick start
 
