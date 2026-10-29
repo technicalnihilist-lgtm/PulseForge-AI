@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- PulseForge AI keeps imported APKs and scan history out of any backup. -->
+<full-backup-content>
+    <exclude domain="file" path="scans/" />
+    <exclude domain="database" path="pulseforge.db" />
+    <exclude domain="sharedpref" path="pulseforge_settings.preferences_pb" />
+</full-backup-content>
