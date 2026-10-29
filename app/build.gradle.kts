@@ -136,6 +136,8 @@ dependencies {
 // tools/fetch-robolectric.sh so tests work without network access.
 tasks.withType<Test>().configureEach {
     maxHeapSize = "1g"
+    systemProperty("robolectric.pixelCopyRenderMode", "hardware")
+
     // Offline mode only when the pre-fetched jars are present and requested, because Robolectric
     // also needs the nativeruntime artifact for @GraphicsMode(NATIVE) screenshot capture.
     if (System.getenv("PF_OFFLINE") == "true") {
