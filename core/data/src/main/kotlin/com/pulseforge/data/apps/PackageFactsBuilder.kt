@@ -32,7 +32,18 @@ object PackageFactsBuilder {
             info?.activities.orEmpty().forEach { add(component(it.name, ComponentType.ACTIVITY, it.exported, it.permission, launcherComponents)) }
             info?.services.orEmpty().forEach { add(component(it.name, ComponentType.SERVICE, it.exported, it.permission, launcherComponents)) }
             info?.receivers.orEmpty().forEach { add(component(it.name, ComponentType.RECEIVER, it.exported, it.permission, launcherComponents)) }
-            info?.providers.orEmpty().forEach { add(component(it.name, ComponentType.PROVIDER, it.exported, it.permission, launcherComponents)) }
+            info?.providers.orEmpty().forEach {
+                add(
+                    component(
+                        name = it.name,
+                        type = ComponentType.PROVIDER,
+                        exported = it.exported,
+                        permission = it.readPermission ?: it.writePermission,
+                        launcherComponents = launcherComponents,
+                        authorities = it.authorities
+                    )
+                )
+            }
         }
 
         val permissions = info?.requestedPermissions.orEmpty().map { PermissionUse(name = it) }
@@ -76,7 +87,8 @@ object PackageFactsBuilder {
         type: ComponentType,
         exported: Boolean,
         permission: String?,
-        launcherComponents: Set<String>
+        launcherComponents: Set<String>,
+        authorities: String? = null
     ): ComponentInfo {
         val isLauncher = "$type:$name" in launcherComponents || "ACTIVITY:$name" in launcherComponents
         return ComponentInfo(
@@ -84,6 +96,7 @@ object PackageFactsBuilder {
             name = name,
             exported = exported,
             permission = permission,
+            authorities = authorities,
             // PackageManager does not expose intent filters. A launcher component is the one case
             // we can reconstruct, and it matters: the export rules skip launcher activities.
             hasIntentFilter = isLauncher,
