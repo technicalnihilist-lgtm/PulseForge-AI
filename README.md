@@ -38,6 +38,10 @@ regenerated on every CI run and published with the build.
 |---|---|
 | ![Security findings](screenshots/report-security.png) | ![Assistant](screenshots/assistant.png) |
 
+| Installed apps |
+|---|
+| ![Installed apps](screenshots/installed-apps.png) |
+
 ![Dashboard in dark theme](screenshots/dashboard-dark.png)
 
 ## Download a build
