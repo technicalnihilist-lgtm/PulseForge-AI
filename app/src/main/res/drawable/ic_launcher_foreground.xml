@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- A shield outline with a pulse trace inside: analysis plus monitoring. -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.16"
+        android:pathData="M54,24 L78,32 L78,54 C78,68 68,78 54,84 C40,78 30,68 30,54 L30,32 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3"
+        android:pathData="M54,26 L76,33 L76,54 C76,66.5 67,75.5 54,81 C41,75.5 32,66.5 32,54 L32,33 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round"
+        android:strokeWidth="3.4"
+        android:pathData="M38,54 L46,54 L50,44 L58,64 L62,54 L70,54" />
+</vector>
