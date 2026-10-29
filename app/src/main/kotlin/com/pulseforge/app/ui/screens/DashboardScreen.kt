@@ -50,7 +50,9 @@ fun DashboardScreen(
     onOpenReport: (String) -> Unit,
     onOpenScan: (String) -> Unit,
     onOpenSourceReview: () -> Unit,
-    onOpenAbout: () -> Unit
+    onOpenAbout: () -> Unit,
+    deviceScore: Int? = null,
+    onOpenDevice: () -> Unit = {}
 ) {
     val latest = scans.firstOrNull { it.status == "COMPLETED" }
     val running = scans.firstOrNull { it.status == "RUNNING" }
@@ -88,6 +90,33 @@ fun DashboardScreen(
                             "for is QUERY_ALL_PACKAGES, to list installed apps.",
                         tone = BannerTone.PRIVACY
                     )
+                }
+
+                item {
+                    SectionCard(
+                        title = "Optimize device",
+                        subtitle = "Score every installed app and act on what it finds"
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            ScoreDial(deviceScore, "device", size = 64.dp)
+                            Spacer(Modifier.size(14.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    if (deviceScore == null) "Not measured yet" else "Device score $deviceScore/100",
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                                Text(
+                                    "Package metadata for every app, with the system actions Android allows.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(10.dp))
+                        Button(onClick = onOpenDevice, modifier = Modifier.fillMaxWidth().testTag("openDevice")) {
+                            Text("Open device optimizer")
+                        }
+                    }
                 }
 
                 if (running != null) {

@@ -10,6 +10,8 @@ import com.pulseforge.app.AppGraph
 import com.pulseforge.data.db.ScanEntity
 import com.pulseforge.data.settings.AppSettings
 import com.pulseforge.data.settings.ThemeMode
+import com.pulseforge.data.apps.DeviceOverviewBuilder
+import com.pulseforge.model.DeviceOverview
 import com.pulseforge.model.InstalledApp
 import com.pulseforge.model.ScanReport
 import com.pulseforge.model.SourceReview
@@ -154,6 +156,64 @@ class AppViewModel(private val graph: AppGraph) : ViewModel() {
     fun openAppSettings(context: Context, packageName: String) {
         runCatching { context.startActivity(graph.installedApps.appSettingsIntent(packageName)) }
             .onFailure { _message.value = "No system settings screen is available for $packageName" }
+    }
+
+    // ------------------------------------------------------------------ device overview
+
+    private val _deviceOverview = MutableStateFlow<DeviceOverview?>(null)
+    val deviceOverview: StateFlow<DeviceOverview?> = _deviceOverview.asStateFlow()
+
+    private val _deviceScanning = MutableStateFlow(false)
+    val deviceScanning: StateFlow<Boolean> = _deviceScanning.asStateFlow()
+
+    /** Measures every installed app from package metadata and scores the device. */
+    fun buildDeviceOverview() {
+        viewModelScope.launch {
+            _deviceScanning.value = true
+            runCatching {
+                val apps = graph.installedApps.list(includeSystemApps = true)
+                DeviceOverviewBuilder.build(apps, cacheBytes())
+            }.onSuccess { _deviceOverview.value = it }
+                .onFailure { _message.value = "Could not measure this device: ${it.message}" }
+            _deviceScanning.value = false
+        }
+    }
+
+    /** Bytes PulseForge itself is holding: cached APK copies plus its own cache directory. */
+    fun cacheBytes(): Long {
+        val vaultBytes = scans.value.sumOf { graph.vault.sizeOf(it.id) }
+        val cacheBytes = directorySize(File(graph.cacheDirectory))
+        return vaultBytes + cacheBytes
+    }
+
+    /** Deletes PulseForge's own cache and orphaned APK copies. Nothing outside the app is touched. */
+    fun cleanCache() {
+        viewModelScope.launch {
+            val freed = withContext(Dispatchers.IO) {
+                var total = 0L
+                val cacheDir = File(graph.cacheDirectory)
+                cacheDir.listFiles()?.forEach { child ->
+                    total += directorySize(child)
+                    child.deleteRecursively()
+                }
+                total
+            }
+            runCatching { graph.repository.cleanOrphans() }
+            _message.value = "Freed ${formatBytes(freed)} of PulseForge cache"
+            buildDeviceOverview()
+        }
+    }
+
+    private fun directorySize(dir: File): Long {
+        if (!dir.exists()) return 0
+        if (dir.isFile) return dir.length()
+        return dir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+    }
+
+    private fun formatBytes(bytes: Long): String = when {
+        bytes < 1024 -> "$bytes B"
+        bytes < 1024 * 1024 -> "%.1f KB".format(bytes / 1024.0)
+        else -> "%.1f MB".format(bytes / (1024.0 * 1024))
     }
 
     // ------------------------------------------------------------------ reports

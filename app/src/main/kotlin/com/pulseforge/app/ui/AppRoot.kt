@@ -38,6 +38,7 @@ import com.pulseforge.app.ui.screens.DashboardScreen
 import com.pulseforge.app.ui.screens.HistoryScreen
 import com.pulseforge.app.ui.screens.ImportScreen
 import com.pulseforge.app.ui.screens.InstalledAppsScreen
+import com.pulseforge.app.ui.screens.DeviceOverviewScreen
 import com.pulseforge.app.ui.screens.OptimizeScreen
 import com.pulseforge.app.ui.screens.ReportScreen
 import com.pulseforge.app.ui.screens.ScanScreen
@@ -56,6 +57,7 @@ object Routes {
     const val SCAN = "scan/{scanId}"
     const val REPORT = "report/{scanId}"
     const val OPTIMIZE = "optimize/{scanId}"
+    const val DEVICE = "device"
     const val ASSISTANT = "assistant/{scanId}"
 
     fun scan(id: String) = "scan/$id"
@@ -80,6 +82,7 @@ fun AppRoot(viewModel: AppViewModel, navController: NavHostController = remember
     val snackbarHostState = remember { SnackbarHostState() }
     val message by viewModel.message.collectAsStateWithLifecycle()
     val scans by viewModel.scans.collectAsStateWithLifecycle()
+    val deviceOverview by viewModel.deviceOverview.collectAsStateWithLifecycle()
 
     LaunchedEffect(message) {
         message?.let {
@@ -127,6 +130,8 @@ fun AppRoot(viewModel: AppViewModel, navController: NavHostController = remember
             composable(Routes.DASHBOARD) {
                 DashboardScreen(
                     scans = scans,
+                    deviceScore = deviceOverview?.score,
+                    onOpenDevice = { navController.navigate(Routes.DEVICE) },
                     onImport = { navController.navigate(Routes.IMPORT) },
                     onOpenReport = { navController.navigate(Routes.report(it)) },
                     onOpenScan = { navController.navigate(Routes.scan(it)) },
@@ -208,6 +213,31 @@ fun AppRoot(viewModel: AppViewModel, navController: NavHostController = remember
                     onOpenBatterySettings = { viewModel.openBatterySettings(context) },
                     onUninstall = { viewModel.uninstall(context, it) },
                     planText = { current?.let { viewModel.planTextFor(it) } ?: "" }
+                )
+            }
+            composable(Routes.DEVICE) {
+                val overview by viewModel.deviceOverview.collectAsStateWithLifecycle()
+                val deviceScanning by viewModel.deviceScanning.collectAsStateWithLifecycle()
+                val startedScan by viewModel.startedScan.collectAsStateWithLifecycle()
+
+                LaunchedEffect(Unit) {
+                    if (overview == null) viewModel.buildDeviceOverview()
+                }
+                LaunchedEffect(startedScan) {
+                    startedScan?.let { scanId ->
+                        viewModel.clearStartedScan()
+                        navController.navigate(Routes.scan(scanId))
+                    }
+                }
+
+                DeviceOverviewScreen(
+                    overview = overview,
+                    scanning = deviceScanning,
+                    onScanAll = { viewModel.buildDeviceOverview() },
+                    onCleanCache = { viewModel.cleanCache() },
+                    onOpenSettings = { viewModel.openAppSettings(context, it) },
+                    onScanApp = { viewModel.scanInstalledApp(it) },
+                    onBack = { navController.popBackStack() }
                 )
             }
             composable(Routes.HISTORY) {

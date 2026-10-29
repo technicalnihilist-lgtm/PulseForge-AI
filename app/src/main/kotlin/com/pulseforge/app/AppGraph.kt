@@ -28,6 +28,7 @@ class AppGraph(context: Context) {
     val scheduler by lazy { ScanScheduler(appContext) }
     val pipeline by lazy { ScanPipeline(appVersion = BuildConfig.VERSION_NAME) }
     val assistant by lazy { OfflineAssistant(AssetLocalModel(appContext)) }
+    val cacheDirectory: String get() = appContext.cacheDir.absolutePath
     val installedApps by lazy { InstalledAppsRepository(appContext) }
     val installedAppScanner by lazy { InstalledAppScanner(appContext, installedApps, pipeline) }
     val sourceReviewEngine get() = SourceReviewEngine

@@ -13,10 +13,12 @@ import androidx.test.core.app.ApplicationProvider
 import com.pulseforge.ai.OfflineAssistant
 import com.pulseforge.app.ui.screens.AssistantScreen
 import com.pulseforge.app.ui.screens.DashboardScreen
+import com.pulseforge.app.ui.screens.DeviceOverviewScreen
 import com.pulseforge.app.ui.screens.InstalledAppsScreen
 import com.pulseforge.app.ui.screens.OptimizeScreen
 import com.pulseforge.app.ui.screens.ReportScreen
 import com.pulseforge.data.db.ScanEntity
+import com.pulseforge.data.apps.DeviceOverviewBuilder
 import com.pulseforge.model.InstalledApp
 import com.pulseforge.model.ScanReport
 import com.pulseforge.performance.BuildRecipeGenerator
@@ -264,6 +266,66 @@ class ScreenTest {
         compose.onNodeWithText("Harden this app").assertIsDisplayed()
 
         capture("optimize")
+    }
+
+    @Test
+    fun deviceOverviewShowsScoreBreakdownAndActions() {
+        val apps = listOf(
+            InstalledApp(
+                packageName = "com.example.social",
+                label = "Social App",
+                versionName = "4.2.0",
+                versionCode = 420,
+                targetSdk = 33,
+                apkSizeBytes = 48_000_000,
+                permissionCount = 14,
+                dangerousPermissionCount = 9,
+                exportedComponentCount = 7
+            ),
+            InstalledApp(
+                packageName = "com.example.debug",
+                label = "Debug Build",
+                versionName = "1.0.0",
+                versionCode = 1,
+                targetSdk = 30,
+                isDebuggable = true,
+                apkSizeBytes = 12_000_000,
+                permissionCount = 3,
+                dangerousPermissionCount = 1,
+                exportedComponentCount = 2
+            ),
+            InstalledApp(
+                packageName = "com.example.old",
+                label = "Old App",
+                targetSdk = 28,
+                apkSizeBytes = 8_000_000,
+                permissionCount = 4,
+                dangerousPermissionCount = 2,
+                exportedComponentCount = 1
+            )
+        )
+        val overview = DeviceOverviewBuilder.build(apps, reclaimableBytes = 240L * 1024 * 1024)
+
+        compose.setContent {
+            PulseForgeTheme(darkTheme = false) {
+                DeviceOverviewScreen(
+                    overview = overview,
+                    scanning = false,
+                    onScanAll = {},
+                    onCleanCache = {},
+                    onOpenSettings = {},
+                    onScanApp = {},
+                    onBack = {}
+                )
+            }
+        }
+
+        compose.onNodeWithText("Optimize device").assertIsDisplayed()
+        compose.onNodeWithText("Device score").assertIsDisplayed()
+        compose.onNodeWithTag("scanAllApps").assertIsDisplayed()
+        compose.onNodeWithText("Debug Build", substring = true).assertExists()
+
+        capture("device-overview")
     }
 
     @Test
