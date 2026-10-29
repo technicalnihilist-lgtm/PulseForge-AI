@@ -18,6 +18,7 @@ import com.pulseforge.performance.OptimizationPlanner
 import com.pulseforge.performance.OptimizationRecipe
 import com.pulseforge.performance.PlannedAction
 import com.pulseforge.performance.SourceReviewEngine
+import com.pulseforge.report.OptimizationPlanWriter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
