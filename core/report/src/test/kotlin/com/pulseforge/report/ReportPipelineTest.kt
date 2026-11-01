@@ -120,4 +120,16 @@ class ReportPipelineTest {
         assertTrue(name.startsWith("My_App__v2_"))
         assertFalse(name.contains(" "))
     }
+
+    @Test
+    fun `json round trip stays within its time budget`() {
+        val json = JsonReportWriter.write(insecure) // warm up
+        val runs = 5
+        val started = System.nanoTime()
+        repeat(runs) {
+            JsonReportWriter.read(json)
+        }
+        val perRunMs = (System.nanoTime() - started) / 1_000_000 / runs
+        assertTrue("report parse averaged $perRunMs ms, expected < 1500 ms", perRunMs < 1500)
+    }
 }

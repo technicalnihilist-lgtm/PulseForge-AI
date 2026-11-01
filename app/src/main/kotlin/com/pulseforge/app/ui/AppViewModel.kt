@@ -37,6 +37,11 @@ class AppViewModel(private val graph: AppGraph) : ViewModel() {
     val scans: StateFlow<List<ScanEntity>> = graph.repository.observeScans()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    init {
+        // Populate the installed-package set once so isInstalled() never needs Binder on the main thread.
+        viewModelScope.launch { runCatching { graph.installedApps.list(includeSystemApps = false) } }
+    }
+
     val settings: StateFlow<AppSettings> = graph.settings.settings
         .stateIn(viewModelScope, SharingStarted.Eagerly, AppSettings())
 
@@ -180,10 +185,13 @@ class AppViewModel(private val graph: AppGraph) : ViewModel() {
     }
 
     /** Bytes PulseForge itself is holding: cached APK copies plus its own cache directory. */
-    fun cacheBytes(): Long {
+    /**
+     * Measures PulseForge's own reclaimable bytes. The directory walk is real disk I/O, so it runs
+     * on IO - it used to run on the caller's thread, which was the main thread during a device scan.
+     */
+    suspend fun cacheBytes(): Long = withContext(Dispatchers.IO) {
         val vaultBytes = scans.value.sumOf { graph.vault.sizeOf(it.id) }
-        val cacheBytes = directorySize(File(graph.cacheDirectory))
-        return vaultBytes + cacheBytes
+        vaultBytes + directorySize(File(graph.cacheDirectory))
     }
 
     /** Deletes PulseForge's own cache and orphaned APK copies. Nothing outside the app is touched. */
@@ -222,25 +230,46 @@ class AppViewModel(private val graph: AppGraph) : ViewModel() {
         graph.repository.report(id)
     }
 
-    fun planFor(report: ScanReport): List<PlannedAction> = OptimizationPlanner.plan(
-        findings = report.findings,
-        performance = report.performance,
-        facts = report.apk,
-        userOwnsSource = settings.value.userOwnsSource
-    )
+    private var planCache: Triple<String, Boolean, List<PlannedAction>>? = null
+    private var recipeCache: Triple<String, Boolean, OptimizationRecipe>? = null
 
-    fun recipeFor(report: ScanReport): OptimizationRecipe =
-        BuildRecipeGenerator.generate(report, settings.value.userOwnsSource)
+    /** Memoised per report and ownership setting: recomposition used to rebuild the whole plan. */
+    fun planFor(report: ScanReport): List<PlannedAction> {
+        val owns = settings.value.userOwnsSource
+        planCache?.let { (id, cachedOwns, plan) ->
+            if (id == report.reportId && cachedOwns == owns) return plan
+        }
+        val plan = OptimizationPlanner.plan(
+            findings = report.findings,
+            performance = report.performance,
+            facts = report.apk,
+            userOwnsSource = owns
+        )
+        planCache = Triple(report.reportId, owns, plan)
+        return plan
+    }
+
+    fun recipeFor(report: ScanReport): OptimizationRecipe {
+        val owns = settings.value.userOwnsSource
+        recipeCache?.let { (id, cachedOwns, recipe) ->
+            if (id == report.reportId && cachedOwns == owns) return recipe
+        }
+        val recipe = BuildRecipeGenerator.generate(report, owns)
+        recipeCache = Triple(report.reportId, owns, recipe)
+        return recipe
+    }
 
     fun planTextFor(report: ScanReport): String =
         OptimizationPlanWriter.write(report, planFor(report), recipeFor(report))
 
-    /** True when the report's package is actually installed, so hardening actions make sense. */
+    /**
+     * True when the report's package is installed, so hardening actions make sense. This is answered
+     * from an in-memory set populated in the background - it used to be a PackageManager query, which
+     * is a Binder round trip executed during composition.
+     */
     fun isInstalled(packageName: String?): Boolean {
         if (packageName.isNullOrBlank()) return false
-        return runCatching {
-            graph.installedApps.packageInfo(packageName) != null
-        }.getOrDefault(false)
+        return graph.installedApps.isInstalled(packageName)
     }
 
     fun uninstall(context: Context, packageName: String) {

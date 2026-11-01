@@ -51,10 +51,60 @@ class StringIndex(
 
     fun firstContaining(needle: String): String? = combined.firstOrNull { it.contains(needle, ignoreCase = true) }
 
+    /**
+     * Lower-cased view of the pool, built once. [hasExact] used to lower-case every string on every
+     * call, which dominated the crypto rules on large APKs.
+     */
+    private val lowered: Set<String> by lazy(LazyThreadSafetyMode.NONE) {
+        combined.mapTo(HashSet(combined.size)) { it.lowercase() }
+    }
+
     /** Exact, case-insensitive membership test for values such as algorithm names. */
-    fun hasExact(vararg values: String): List<String> {
-        val wanted = values.map { it.lowercase() }.toSet()
-        return combined.filter { it.lowercase() in wanted }.distinct()
+    fun hasExact(vararg values: String): List<String> = values.filter { it.lowercase() in lowered }
+
+    /**
+     * Tests several patterns in a single pass over the pool.
+     *
+     * The secrets rule has eight patterns; calling [regexMatches] once per pattern scanned the whole
+     * DEX string pool eight times. This walks it once and stops as soon as every pattern has its
+     * quota, which is the difference between ~8 full scans and one.
+     */
+    fun multiRegexMatches(
+        patterns: List<Regex>,
+        limitPerPattern: Int = 6
+    ): Map<Int, List<Pair<String, String>>> {
+        if (patterns.isEmpty()) return emptyMap()
+        val results = HashMap<Int, MutableList<Pair<String, String>>>(patterns.size)
+
+        fun record(index: Int, source: String, value: String) {
+            val list = results.getOrPut(index) { mutableListOf() }
+            if (list.size < limitPerPattern) list.add(source to value)
+        }
+
+        fun full(index: Int) = (results[index]?.size ?: 0) >= limitPerPattern
+        fun allFull() = patterns.indices.all { full(it) }
+
+        for (s in combined) {
+            if (s.length > 4096) continue
+            for (i in patterns.indices) {
+                if (full(i)) continue
+                if (patterns[i].containsMatchIn(s)) record(i, "DEX/resource string pool", s)
+            }
+            if (allFull()) return results.mapValues { it.value.toList() }
+        }
+
+        for ((path, text) in assetTexts) {
+            for (line in text.lineSequence()) {
+                if (line.length > 4096) continue
+                for (i in patterns.indices) {
+                    if (full(i)) continue
+                    if (patterns[i].containsMatchIn(line)) record(i, path, line.trim())
+                }
+                if (allFull()) return results.mapValues { it.value.toList() }
+            }
+        }
+
+        return results.mapValues { it.value.toList() }
     }
 
     fun regexMatches(regex: Regex, limit: Int = 10): List<Pair<String, String>> {

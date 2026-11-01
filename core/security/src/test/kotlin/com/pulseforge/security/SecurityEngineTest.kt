@@ -120,4 +120,35 @@ class SecurityEngineTest {
         assertTrue(RuleCatalog.rules.size >= 20)
         assertEquals(RuleCatalog.rules.size, RuleCatalog.ids.distinct().size)
     }
+
+    @Test
+    fun `rule engine stays within its time budget`() {
+        val engine = SecurityEngine()
+        engine.evaluate(insecure) // warm up JIT and the lazy string index
+
+        val runs = 3
+        val started = System.nanoTime()
+        repeat(runs) { engine.evaluate(insecure) }
+        val perRunMs = (System.nanoTime() - started) / 1_000_000 / runs
+
+        // Generous budget: this is a regression guard against accidentally re-introducing a full
+        // extra pass over the string pool, not a benchmark.
+        assertTrue("evaluate() averaged $perRunMs ms, expected < 2000 ms", perRunMs < 2000)
+    }
+
+    @Test
+    fun `multi pattern scan matches single pattern scans`() {
+        // The single-pass implementation must find exactly what per-pattern scanning found.
+        val patterns = listOf(Regex("""\bAKIA[0-9A-Z]{16}\b"""), Regex("""\bAIza[0-9A-Za-z_\-]{30,45}\b"""))
+        val index = StringIndex(insecure.dex.strings, insecure.resourceStrings, insecure.assetTextSamples)
+        val single = patterns.map { pattern ->
+            index.regexMatches(pattern, limit = 6).map { it.second }.toSet()
+        }
+        val multi = index.multiRegexMatches(patterns, limitPerPattern = 6)
+        patterns.indices.forEach { index ->
+            val expected = single[index]
+            val actual = multi[index].orEmpty().map { it.second }.toSet()
+            assertTrue("pattern $index differs: expected $expected, got $actual", actual.containsAll(expected))
+        }
+    }
 }

@@ -21,7 +21,22 @@ import java.io.File
  */
 class InstalledAppsRepository(private val context: Context) {
 
+    private companion object {
+        const val LAUNCHER_CACHE_TTL_MS = 60_000L
+    }
+
+
     private val packageManager: PackageManager get() = context.packageManager
+
+    /** Populated by [list]; lets callers ask "is this installed?" without touching PackageManager. */
+    @Volatile
+    private var installedPackages: Set<String> = emptySet()
+
+    /** In-memory check. Never hits Binder, so it is safe on the main thread. */
+    fun isInstalled(packageName: String): Boolean = packageName in installedPackages
+
+    /** Launcher components are queried repeatedly; a short-lived memo keeps it off the Binder path. */
+    private var launcherCache: Pair<Long, Set<String>>? = null
 
     @Suppress("DEPRECATION")
     private fun queryFlags(): Int =
@@ -34,6 +49,7 @@ class InstalledAppsRepository(private val context: Context) {
             packageManager.getInstalledPackages(queryFlags())
         }.getOrDefault(emptyList())
 
+        installedPackages = packages.mapTo(HashSet(packages.size)) { it.packageName }
         packages.mapNotNull { info -> runCatching { toInstalledApp(info, launchers) }.getOrNull() }
             .filter { includeSystemApps || !it.isSystemApp }
             .sortedWith(compareByDescending<InstalledApp> { it.quickRisk.rank }.thenBy { it.displayTitle.lowercase() })
@@ -45,14 +61,22 @@ class InstalledAppsRepository(private val context: Context) {
         packageManager.getPackageInfo(packageName, queryFlags())
     }.getOrNull()
 
-    fun launcherComponents(): Set<String> = runCatching {
-        val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-        @Suppress("DEPRECATION")
-        packageManager.queryIntentActivities(intent, 0)
-            .mapNotNull { it.activityInfo?.name }
-            .map { "ACTIVITY:$it" }
-            .toSet()
-    }.getOrDefault(emptySet())
+    fun launcherComponents(): Set<String> {
+        val cached = launcherCache
+        if (cached != null && System.currentTimeMillis() - cached.first < LAUNCHER_CACHE_TTL_MS) {
+            return cached.second
+        }
+        val fresh = runCatching {
+            val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+            @Suppress("DEPRECATION")
+            packageManager.queryIntentActivities(intent, 0)
+                .mapNotNull { it.activityInfo?.name }
+                .map { "ACTIVITY:$it" }
+                .toSet()
+        }.getOrDefault(emptySet())
+        launcherCache = System.currentTimeMillis() to fresh
+        return fresh
+    }
 
     /** The APK file, if this build of Android lets us read another app's package. */
     fun apkFile(app: InstalledApp): File? {

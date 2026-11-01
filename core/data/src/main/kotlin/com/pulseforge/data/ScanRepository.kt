@@ -101,17 +101,30 @@ class ScanRepository(private val dao: ScanDao, private val vault: FileVault) {
         dao.updateProgress(id, stage, progress, message)
     }
 
+    /**
+     * Last couple of parsed reports. Reading a report used to deserialise the whole JSON again on
+     * every screen visit; the report for a given id never changes, so a tiny LRU removes that work.
+     */
+    private val reportCache = object : LinkedHashMap<String, ScanReport>(4, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ScanReport>?): Boolean = size > 2
+    }
+
     suspend fun report(id: String): ScanReport? {
+        synchronized(reportCache) { reportCache[id] }?.let { return it }
         val json = dao.getById(id)?.reportJson ?: return null
-        return runCatching { JsonReportWriter.read(json) }.getOrNull()
+        val parsed = runCatching { JsonReportWriter.read(json) }.getOrNull() ?: return null
+        synchronized(reportCache) { reportCache[id] = parsed }
+        return parsed
     }
 
     suspend fun delete(id: String) {
+        synchronized(reportCache) { reportCache.remove(id) }
         dao.delete(id)
         vault.delete(id)
     }
 
     suspend fun deleteAll() {
+        synchronized(reportCache) { reportCache.clear() }
         dao.deleteAll()
         vault.deleteAll()
     }

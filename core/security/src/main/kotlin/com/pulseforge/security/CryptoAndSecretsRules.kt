@@ -242,8 +242,10 @@ object SecretsRule : SecurityRule {
 
     override fun evaluate(ctx: RuleContext): List<Finding> {
         val findings = mutableListOf<Finding>()
-        for (pattern in patterns) {
-            val matches = ctx.strings.regexMatches(pattern.regex, limit = 6)
+        // One pass over the pool for all patterns instead of one pass per pattern.
+        val byPattern = ctx.strings.multiRegexMatches(patterns.map { it.regex }, limitPerPattern = 6)
+        for ((index, pattern) in patterns.withIndex()) {
+            val matches = byPattern[index].orEmpty()
             if (matches.isEmpty()) continue
 
             val evidence = matches.map { (source, value) ->
