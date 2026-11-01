@@ -155,5 +155,5 @@ Fixtures are generated, not committed: `python3 tools/make-fixtures.py`.
 
 ## Licence
 
-Apache 2.0 — see [`LICENSE`](LICENSE). Third-party library versions and licences are listed in
+MIT — see [`LICENSE`](LICENSE). Third-party library versions and licences are listed in
 [`docs/BUILD.md`](docs/BUILD.md) and in the app's About screen.
