@@ -27,10 +27,7 @@ object SignatureInspector {
 
     fun inspect(file: File, archive: ZipArchive): SigningInfo {
         val warnings = mutableListOf<String>()
-        val v1Files = archive.entries.map { it.path }.filter { path ->
-            val lower = path.lowercase()
-            lower.startsWith("meta-inf/") && (lower.endsWith(".rsa") || lower.endsWith(".dsa") || lower.endsWith(".ec"))
-        }
+        val v1Files = metaInfSignatureFiles(archive.entries)
 
         val blockCertificates = mutableListOf<X509Certificate>()
         val schemes = mutableListOf<String>()
@@ -82,6 +79,26 @@ object SignatureInspector {
             v1SignatureFiles = v1Files,
             warnings = warnings.distinct()
         )
+    }
+
+    /**
+     * META-INF signature blocks (v1).
+     *
+     * This used to copy every entry path into a list and lower-case each one, so a 50,000-entry APK
+     * paid 50,000 string allocations to find two files. The comparison is case-insensitive in place
+     * instead, and the sequence is not materialised.
+     */
+    private fun metaInfSignatureFiles(entries: List<ArchiveEntry>): List<String> =
+        entries.asSequence()
+            .map { it.path }
+            .filter { path ->
+                path.length > 9 && path.regionMatches(0, "META-INF/", 0, 9, ignoreCase = true) &&
+                    path.hasAnySuffixIgnoreCase(".rsa", ".dsa", ".ec")
+            }
+            .toList()
+
+    private fun String.hasAnySuffixIgnoreCase(vararg suffixes: String): Boolean = suffixes.any { suffix ->
+        length >= suffix.length && regionMatches(length - suffix.length, suffix, 0, suffix.length, ignoreCase = true)
     }
 
     /** @return true/false from apksig, or null when the verifier could not run. */

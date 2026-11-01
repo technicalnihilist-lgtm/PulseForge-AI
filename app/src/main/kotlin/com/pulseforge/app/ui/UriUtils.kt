@@ -9,11 +9,14 @@ object UriUtils {
 
     data class DocumentInfo(val displayName: String, val sizeBytes: Long?)
 
+    /** Only the two columns that are used are requested, so the provider sends less over Binder. */
+    private val projection = arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE)
+
     fun describe(context: Context, uri: Uri): DocumentInfo {
         var name: String? = null
         var size: Long? = null
         runCatching {
-            context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            context.contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
                 val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
                 val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
                 if (cursor.moveToFirst()) {

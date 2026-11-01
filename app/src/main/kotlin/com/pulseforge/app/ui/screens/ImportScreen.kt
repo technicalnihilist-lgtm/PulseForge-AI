@@ -36,6 +36,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,6 +53,9 @@ import com.pulseforge.ui.components.BannerTone
 import com.pulseforge.ui.components.InfoBanner
 import com.pulseforge.ui.components.KeyValueRow
 import com.pulseforge.ui.components.SectionCard
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,10 +69,16 @@ fun ImportScreen(viewModel: AppViewModel, onStarted: (String) -> Unit, onBack: (
     var deepScan by remember { mutableStateOf(settings.deepScan) }
     var keepCopy by remember { mutableStateOf(settings.keepApkCopy) }
 
+    val scope = rememberCoroutineScope()
+
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             pickedUri = uri
-            document = UriUtils.describe(context, uri)
+            // The provider query behind describe() is a Binder round trip to another process, so it
+            // is answered off the main thread and the details appear when it returns.
+            scope.launch {
+                document = withContext(Dispatchers.IO) { UriUtils.describe(context, uri) }
+            }
             runCatching {
                 context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }

@@ -138,9 +138,10 @@ object Redactor {
         return trimmed.take(keep) + "*".repeat((trimmed.length - keep * 2).coerceAtMost(12)) + trimmed.takeLast(keep)
     }
 
+    private val userInfoPattern = Regex("(://)([^/@\\s:]+)(:)([^/@\\s]+)(@)")
+
     /** Masks userinfo inside a URL, so only the scheme and host remain readable. */
-    fun maskUrlCredentials(url: String): String =
-        url.replace(Regex("(://)([^/@\\s:]+)(:)([^/@\\s]+)(@)"), "$1***:***$5")
+    fun maskUrlCredentials(url: String): String = url.replace(userInfoPattern, "$1***:***$5")
 
     private val sensitiveQuery = Regex(
         "([?&](?:api[_-]?key|apikey|key|token|access[_-]?token|secret|password|passwd|sig|signature|auth)=)([^&\\s#]+)",

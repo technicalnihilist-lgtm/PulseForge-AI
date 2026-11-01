@@ -15,11 +15,17 @@ object ReportFormat {
         else -> "%.2f GB".format(value / (1024.0 * 1024 * 1024))
     }
 
-    fun date(epochMs: Long): String {
-        val format = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.US)
-        format.timeZone = TimeZone.getTimeZone("UTC")
-        return format.format(Date(epochMs)) + " UTC"
+    /**
+     * One formatter per thread instead of one per call. SimpleDateFormat is not thread-safe and
+     * construction plus TimeZone lookup is the expensive part, so it is built once per thread.
+     */
+    private val dateFormat = object : ThreadLocal<SimpleDateFormat>() {
+        override fun initialValue(): SimpleDateFormat = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.US).apply {
+            timeZone = TimeZone.getTimeZone("UTC")
+        }
     }
+
+    fun date(epochMs: Long): String = dateFormat.get()!!.format(Date(epochMs)) + " UTC"
 
     fun duration(ms: Long): String = when {
         ms < 1000 -> "$ms ms"

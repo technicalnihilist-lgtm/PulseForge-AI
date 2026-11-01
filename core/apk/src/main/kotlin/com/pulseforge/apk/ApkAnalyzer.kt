@@ -250,11 +250,12 @@ class ApkAnalyzer(private val config: AnalysisConfig = AnalysisConfig()) {
             .map { NativeLibInfo(it.path, abiOf(it.path), it.uncompressedBytes) }
         val abis = nativeLibs.map { it.abi }.distinct().sorted()
 
+        val poolProbe = StringPoolProbe(dex.strings)
         val unusedAssets = entries
             .filter { it.path.startsWith("assets/") && it.uncompressedBytes > 8 * 1024 }
             .filter { entry ->
                 val name = entry.path.substringAfterLast('/')
-                dex.strings.none { s -> s.contains(name) }
+                !poolProbe.anyContains(name)
             }
             .sortedByDescending { it.uncompressedBytes }
             .take(30)
@@ -358,17 +359,62 @@ class ApkAnalyzer(private val config: AnalysisConfig = AnalysisConfig()) {
         return out
     }
 
-    private fun flatten(node: com.pulseforge.apk.axml.AxmlNode, depth: Int): String {
-        if (depth > 8) return ""
-        val sb = StringBuilder()
-        sb.append(" ".repeat(depth * 2)).append('<').append(node.name)
+    /**
+     * Flattens a parsed XML tree into text.
+     *
+     * One builder is shared by the whole walk: the recursive version allocated a builder, a
+     * `" ".repeat()` indent and a substring per node, then copied each child's text into its parent.
+     * The 16,000-character cap is applied to the finished document, which is the same cut the
+     * per-node cap produced (a node only reached the cap when the document as a whole exceeded it).
+     */
+    private fun flatten(node: com.pulseforge.apk.axml.AxmlNode, depth: Int): String =
+        buildString { appendFlattened(this, node, depth) }
+
+    private fun appendFlattened(sb: StringBuilder, node: com.pulseforge.apk.axml.AxmlNode, depth: Int) {
+        if (depth > 8) return
+        repeat(depth * 2) { sb.append(' ') }
+        sb.append('<').append(node.name)
         node.attributes.forEach { a ->
             sb.append(' ').append(a.name).append("=\"").append(a.rawValue ?: a.typedValue).append('"')
         }
         sb.append(">\n")
-        node.children.forEach { sb.append(flatten(it, depth + 1)) }
-        if (sb.length > 16_000) return sb.substring(0, 16_000)
-        return sb.toString()
+        node.children.forEach { appendFlattened(sb, it, depth + 1) }
+        // Once the document passes the cap nothing later can be visible, so stop growing it.
+        if (sb.length > 16_000) sb.setLength(16_000)
+    }
+
+    /**
+     * Answers "does any string in the pool contain this value?" without re-walking the pool.
+     *
+     * The unused-asset check asked that question once per candidate asset, so it scanned the whole
+     * DEX string pool (up to hundreds of thousands of strings) for every asset: O(assets x pool).
+     * The pool is joined once, separated by a character an archive path cannot contain, and each
+     * question becomes one `indexOf` over a single contiguous buffer. The answer is identical: a
+     * match can never span two strings because the separator cannot appear in the needle.
+     */
+    private class StringPoolProbe(private val strings: List<String>) {
+
+        private val separator = '\u0000'
+
+        /** Above this many characters the joined copy is not worth its memory; fall back to a scan. */
+        private val joinLimit = 32 * 1024 * 1024
+
+        private val joined: String? by lazy(LazyThreadSafetyMode.NONE) {
+            var total = 0L
+            for (s in strings) {
+                total += s.length + 1
+                if (total > joinLimit) return@lazy null
+            }
+            val sb = StringBuilder(total.toInt())
+            for (s in strings) sb.append(s).append(separator)
+            sb.toString()
+        }
+
+        fun anyContains(needle: String): Boolean {
+            if (needle.indexOf(separator) >= 0) return strings.any { it.contains(needle) }
+            val pool = joined ?: return strings.any { it.contains(needle) }
+            return pool.contains(needle)
+        }
     }
 
     private fun abiOf(path: String): String {

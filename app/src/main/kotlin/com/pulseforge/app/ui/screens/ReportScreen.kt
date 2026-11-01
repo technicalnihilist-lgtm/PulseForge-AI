@@ -101,12 +101,15 @@ fun ReportScreen(
         scope.launch {
             runCatching {
                 exportStatus = "Writing ${format.label.lowercase()}..."
-                val bytes = ReportExporter.bytes(context, current, format)
+                // Rendering the PDF (or serialising the JSON) is the expensive part of an export and
+                // used to run on the main thread; only the status text touches the UI now.
+                val name = ReportExporter.fileName(current, format)
                 withContext(Dispatchers.IO) {
+                    val bytes = ReportExporter.bytes(context, current, format)
                     context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
                         ?: error("The destination could not be opened")
                 }
-                exportStatus = "Saved ${ReportExporter.fileName(current, format)}"
+                exportStatus = "Saved $name"
             }.onFailure { exportStatus = "Export failed: ${it.message}" }
         }
     }

@@ -86,8 +86,8 @@ object DexParser {
                 val owner = types.getOrElse(classIdx) { "" }
                 val name = strings.getOrElse(nameIdx) { "" }
                 if (owner.isNotEmpty() && name.isNotEmpty()) {
-                    val key = "$owner->$name"
-                    methodRefs[key] = (methodRefs[key] ?: 0) + 1
+                    // merge() hashes the key once; the "get then put" form hashed it twice per method.
+                    methodRefs.merge("$owner->$name", 1, Int::plus)
                 }
             }
         }
@@ -126,7 +126,7 @@ object DexParser {
 
         for (idx in indexes) {
             strings.addAll(idx.strings)
-            idx.methodRefs.forEach { (k, v) -> refs[k] = (refs[k] ?: 0) + v }
+            idx.methodRefs.forEach { (k, v) -> refs.merge(k, v, Int::plus) }
             classes.addAll(idx.definedClasses)
             warnings.addAll(idx.facts.parseWarnings)
         }

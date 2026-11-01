@@ -48,12 +48,10 @@ object EntryCategory {
  * Read-only wrapper around a ZIP/APK. Enforces limits so a hostile or huge file cannot exhaust
  * memory, and never extracts entries to disk.
  */
-class ZipArchive private constructor(private val zip: ZipFile) : AutoCloseable {
-
-    val entries: List<ArchiveEntry> = zip.entries().asSequence()
-        .filter { !it.isDirectory }
-        .map { e -> toEntry(e) }
-        .toList()
+class ZipArchive private constructor(
+    private val zip: ZipFile,
+    val entries: List<ArchiveEntry>
+) : AutoCloseable {
 
     fun readEntry(path: String, maxBytes: Long = 64L * 1024 * 1024): ByteArray? {
         val entry = zip.getEntry(path) ?: return null
@@ -148,16 +146,21 @@ class ZipArchive private constructor(private val zip: ZipFile) : AutoCloseable {
                     "Re-download the APK; a truncated or re-zipped file cannot be analysed."
                 )
             }
-            val count = zip.entries().asSequence().count()
-            if (count > MAX_ENTRIES) {
+            // One pass over the central directory: the entry list is built once and both the safety
+            // cap and the callers read it. It used to be enumerated twice (count, then list).
+            val entries = zip.entries().asSequence()
+                .filter { !it.isDirectory }
+                .map { e -> toEntry(e) }
+                .toList()
+            if (entries.size > MAX_ENTRIES) {
                 zip.close()
                 throw ApkException(
                     ScanErrorCode.TOO_LARGE,
-                    "The archive contains $count entries, above the $MAX_ENTRIES safety cap",
+                    "The archive contains ${entries.size} entries, above the $MAX_ENTRIES safety cap",
                     "This does not look like a normal APK. PulseForge refuses to analyse it."
                 )
             }
-            return ZipArchive(zip)
+            return ZipArchive(zip, entries)
         }
 
         private fun toEntry(e: ZipEntry) = ArchiveEntry(

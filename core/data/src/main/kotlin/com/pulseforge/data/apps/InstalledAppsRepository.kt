@@ -49,10 +49,21 @@ class InstalledAppsRepository(private val context: Context) {
             packageManager.getInstalledPackages(queryFlags())
         }.getOrDefault(emptyList())
 
-        installedPackages = packages.mapTo(HashSet(packages.size)) { it.packageName }
-        packages.mapNotNull { info -> runCatching { toInstalledApp(info, launchers) }.getOrNull() }
-            .filter { includeSystemApps || !it.isSystemApp }
-            .sortedWith(compareByDescending<InstalledApp> { it.quickRisk.rank }.thenBy { it.displayTitle.lowercase() })
+        // One pass over the package list: the previous version built a HashSet, then mapped to a
+        // Result per app (allocating one object each) and filtered in a second pass.
+        val installed = HashSet<String>(packages.size)
+        val apps = ArrayList<InstalledApp>(packages.size)
+        for (info in packages) {
+            installed.add(info.packageName)
+            val app = try {
+                toInstalledApp(info, launchers)
+            } catch (e: Exception) {
+                null
+            } ?: continue
+            if (includeSystemApps || !app.isSystemApp) apps.add(app)
+        }
+        installedPackages = installed
+        apps.sortedWith(compareByDescending<InstalledApp> { it.quickRisk.rank }.thenBy { it.displayTitle.lowercase() })
     }
 
     /** Package metadata for one app, used when building the metadata-only report. */
@@ -97,8 +108,11 @@ class InstalledAppsRepository(private val context: Context) {
         val debuggable = (appInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
         val apkPath = appInfo.sourceDir
         val apkFile = apkPath?.let { File(it) }
+        // One stat() for both the size and the readability answer; it used to ask twice.
+        val apkExists = apkFile?.exists() == true
 
-        val permissions = info.requestedPermissions.orEmpty().toList()
+        // No copy of the permission array: it is only counted, never mutated or stored.
+        val permissions = info.requestedPermissions
         val exported = info.activities.orEmpty().count { it.exported } +
             info.services.orEmpty().count { it.exported } +
             info.receivers.orEmpty().count { it.exported } +
@@ -115,10 +129,10 @@ class InstalledAppsRepository(private val context: Context) {
             isDebuggable = debuggable,
             installer = runCatching { packageManager.getInstallerPackageName(info.packageName) }.getOrNull(),
             apkPath = apkPath,
-            apkSizeBytes = apkFile?.let { if (it.exists()) it.length() else 0L } ?: 0L,
-            apkReadable = apkFile?.let { it.exists() && it.canRead() } == true,
-            permissionCount = permissions.size,
-            dangerousPermissionCount = permissions.count { PermissionCatalog.isDangerous(it) },
+            apkSizeBytes = if (apkFile != null && apkExists) apkFile.length() else 0L,
+            apkReadable = apkFile != null && apkExists && apkFile.canRead(),
+            permissionCount = permissions?.size ?: 0,
+            dangerousPermissionCount = permissions?.count { PermissionCatalog.isDangerous(it) } ?: 0,
             exportedComponentCount = exported,
             lastUpdateTime = info.lastUpdateTime
         )

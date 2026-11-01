@@ -104,6 +104,39 @@ class ApkAnalyzerTest {
     }
 
     @Test
+    fun `unused asset candidates match a direct scan of the string pool`() {
+        // Guards the single-buffer string-pool probe: it must select exactly the assets whose file
+        // name never appears in any DEX string, in the same order as the naive per-string scan.
+        val input = analyse("fixture-insecure.apk")
+        val resources = input.facts.resources!!
+        val expected = input.entries
+            .filter { it.path.startsWith("assets/") && it.uncompressedBytes > 8 * 1024 }
+            .filter { entry ->
+                val name = entry.path.substringAfterLast('/')
+                input.dex.strings.none { s -> s.contains(name) }
+            }
+            .sortedByDescending { it.uncompressedBytes }
+            .take(30)
+            .map { it.path }
+        assertEquals(expected, resources.unusedAssetCandidates)
+    }
+
+    @Test
+    fun `xml resource summaries are flattened, indented and capped`() {
+        // Exercises the shared-builder flattening: one text block per compiled res/xml or res/layout
+        // document, indented two spaces per level and never longer than the 16,000 character cap.
+        val input = analyse("fixture-clean.apk")
+        val summaries = input.xmlResourceSummaries
+        assertTrue("expected compiled XML resources", summaries.isNotEmpty())
+        summaries.forEach { (path, text) ->
+            assertTrue("$path is empty", text.isNotEmpty())
+            assertTrue("$path is not capped", text.length <= 16_000)
+            assertTrue("$path does not start with an element: ${text.take(20)}", text.startsWith("<"))
+            assertTrue("$path is not newline terminated", text.contains(">\n"))
+        }
+    }
+
+    @Test
     fun `clean fixture has hardened defaults`() {
         val manifest = analyse("fixture-clean.apk").facts.manifest!!
         assertEquals(false, manifest.debuggable)
