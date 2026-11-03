@@ -293,6 +293,11 @@ class PdfReportWriter {
         }
         private val rulePaint = Paint().apply { color = Color.rgb(214, 218, 226); strokeWidth = 0.7f }
         private val chipPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val chipTextPaint = Paint(bodyPaint).apply {
+            color = Color.WHITE
+            textSize = 7.5f
+            typeface = Typeface.create("sans-serif", Typeface.BOLD)
+        }
 
         fun newPage() {
             finishPage()
@@ -392,11 +397,6 @@ class PdfReportWriter {
             }
             chipPaint.color = color
             canvas?.drawRoundRect(RectF(margin, y + 1f, margin + chipWidth, y + 13f), 3f, 3f, chipPaint)
-            val chipTextPaint = Paint(bodyPaint).apply {
-                this.color = Color.WHITE
-                textSize = 7.5f
-                typeface = Typeface.create("sans-serif", Typeface.BOLD)
-            }
             canvas?.drawText(severity.name, margin + 5f, y + 10f, chipTextPaint)
             writeWrapped(text, bodyBoldPaint, chipWidth + 6f, startY = y + 1f, maxWidth = contentWidth - chipWidth - 6f)
             y += maxOf(15f, bodyBoldPaint.textSize + 6f)
@@ -411,27 +411,40 @@ class PdfReportWriter {
         ) {
             val c = canvas ?: return
             val words = text.split(' ')
-            var line = StringBuilder()
+            val line = StringBuilder()
+            val spaceWidth = paint.measureText(" ")
+            var lineWidth = 0f
             var lineY = startY + paint.textSize
 
             fun flush() {
                 if (line.isEmpty()) return
                 c.drawText(line.toString(), margin + indent, lineY, paint)
-                line = StringBuilder()
+                line.setLength(0)
+                lineWidth = 0f
                 lineY += paint.textSize + 2.6f
             }
 
+            // Each word is measured once and the running width is kept, instead of rebuilding and
+            // re-measuring the whole candidate line for every word (which allocated a string per
+            // word and was quadratic in the line length).
             for (word in words) {
-                val candidate = if (line.isEmpty()) word else "$line $word"
-                if (paint.measureText(candidate) > maxWidth && line.isNotEmpty()) {
+                val wordWidth = paint.measureText(word)
+                val projected = if (line.isEmpty()) wordWidth else lineWidth + spaceWidth + wordWidth
+                if (projected > maxWidth && line.isNotEmpty()) {
                     flush()
                     if (lineY > pageHeight - margin - footerReserve) {
                         newPage()
                         lineY = margin + paint.textSize
                     }
                     line.append(word)
+                    lineWidth = wordWidth
                 } else {
-                    line = StringBuilder(candidate)
+                    if (line.isNotEmpty()) {
+                        line.append(' ')
+                        lineWidth += spaceWidth
+                    }
+                    line.append(word)
+                    lineWidth += wordWidth
                 }
             }
             flush()

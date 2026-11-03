@@ -174,10 +174,21 @@ class ZipArchive private constructor(
     }
 }
 
+private const val HEX_DIGITS = "0123456789abcdef"
+
+/**
+ * Two characters per byte written straight into a char array. The previous version called
+ * `"%02x".format(b)` per byte, which allocates a Formatter and a StringBuilder for every one of
+ * the bytes in an APK or certificate digest. The output is identical.
+ */
 internal fun ByteArray.toHex(): String {
-    val sb = StringBuilder(size * 2)
-    for (b in this) sb.append("%02x".format(b))
-    return sb.toString()
+    val out = CharArray(size * 2)
+    for (i in indices) {
+        val value = this[i].toInt() and 0xFF
+        out[i * 2] = HEX_DIGITS[value ushr 4]
+        out[i * 2 + 1] = HEX_DIGITS[value and 0x0F]
+    }
+    return String(out)
 }
 
 fun File.sha256(): String {

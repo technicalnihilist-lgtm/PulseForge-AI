@@ -17,8 +17,11 @@ import java.io.File
  */
 class FileVault(private val context: Context) {
 
-    private val root: File
-        get() = File(context.filesDir, "scans").apply { mkdirs() }
+    /**
+     * Resolved once. The old getter allocated a File and ran a `mkdirs()` syscall on every path
+     * lookup, and [sizeOf] is called once per history row from the settings screen.
+     */
+    private val root: File by lazy { File(context.filesDir, "scans").apply { mkdirs() } }
 
     fun directoryFor(scanId: String): File = File(root, scanId)
 

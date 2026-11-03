@@ -123,13 +123,13 @@ object DeviceOverviewBuilder {
             )
         )
 
+        // Stable sorts in reverse priority order: each sort key is computed once per app instead
+        // of on every comparison. Same order: risk, then dangerous permissions, then title.
         val offenders = apps
             .filter { it.quickRisk.rank >= Severity.MEDIUM.rank }
-            .sortedWith(
-                compareByDescending<InstalledApp> { it.quickRisk.rank }
-                    .thenByDescending { it.dangerousPermissionCount }
-                    .thenBy { it.displayTitle.lowercase() }
-            )
+            .sortedBy { it.displayTitle.lowercase() }
+            .sortedByDescending { it.dangerousPermissionCount }
+            .sortedByDescending { it.quickRisk.rank }
             .take(10)
 
         return DeviceOverview(

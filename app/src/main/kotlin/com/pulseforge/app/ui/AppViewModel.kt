@@ -83,14 +83,16 @@ class AppViewModel(private val graph: AppGraph) : ViewModel() {
 
     fun deleteScan(id: String) {
         viewModelScope.launch {
-            graph.repository.delete(id)
+            // The row delete and the recursive vault delete are disk work and used to run on the
+            // main dispatcher, stalling the UI while the directory tree was removed.
+            withContext(Dispatchers.IO) { graph.repository.delete(id) }
             _message.value = "Scan deleted, including the cached APK"
         }
     }
 
     fun deleteAllScans() {
         viewModelScope.launch {
-            graph.repository.deleteAll()
+            withContext(Dispatchers.IO) { graph.repository.deleteAll() }
             _message.value = "All scans and cached APKs deleted"
         }
     }
@@ -140,17 +142,21 @@ class AppViewModel(private val graph: AppGraph) : ViewModel() {
                 graph.scheduler.enqueue(scanId, apkFile, "${app.displayTitle}.apk", keepCopy = false)
                 _startedScan.value = scanId
             } else {
-                runCatching {
-                    val report = graph.installedAppScanner.scan(app, null)
-                    graph.repository.markCompleted(scanId, report, null)
-                }.onFailure {
-                    graph.repository.markFailed(
-                        scanId,
-                        com.pulseforge.model.ScanStatus.FAILED,
-                        com.pulseforge.model.ScanErrorCode.INTERNAL_ERROR.name,
-                        it.message ?: "The installed app could not be analysed",
-                        "This app's metadata could not be read. Try importing its APK as a file instead."
-                    )
+                // Rule evaluation, report JSON serialisation and the database write are all
+                // non-trivial work: they ran on the main dispatcher and now run on IO.
+                withContext(Dispatchers.IO) {
+                    runCatching {
+                        val report = graph.installedAppScanner.scan(app, null)
+                        graph.repository.markCompleted(scanId, report, null)
+                    }.onFailure {
+                        graph.repository.markFailed(
+                            scanId,
+                            com.pulseforge.model.ScanStatus.FAILED,
+                            com.pulseforge.model.ScanErrorCode.INTERNAL_ERROR.name,
+                            it.message ?: "The installed app could not be analysed",
+                            "This app's metadata could not be read. Try importing its APK as a file instead."
+                        )
+                    }
                 }
                 _startedScan.value = scanId
             }

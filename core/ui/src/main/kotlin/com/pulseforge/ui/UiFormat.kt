@@ -16,8 +16,31 @@ object UiFormat {
 
     fun count(value: Int): String = if (value >= 10_000) "%,d".format(value) else value.toString()
 
-    fun dateTime(epochMs: Long): String =
-        SimpleDateFormat("dd MMM yyyy - HH:mm", Locale.getDefault()).format(Date(epochMs))
+    fun dateTime(epochMs: Long): String {
+        val locale = Locale.getDefault()
+        val cached = formatter.get()!!
+        val format = if (cached.first == locale) {
+            cached.second
+        } else {
+            newFormat(locale).also { formatter.set(locale to it) }
+        }
+        return format.format(Date(epochMs))
+    }
+
+    /**
+     * Built once per thread and locale. Constructing a SimpleDateFormat parses the pattern and
+     * resolves the locale's date symbols, and this is called for every row of the dashboard and
+     * history lists, so building one per call showed up while scrolling.
+     */
+    private val formatter = object : ThreadLocal<Pair<Locale, SimpleDateFormat>>() {
+        override fun initialValue(): Pair<Locale, SimpleDateFormat> {
+            val locale = Locale.getDefault()
+            return locale to newFormat(locale)
+        }
+    }
+
+    private fun newFormat(locale: Locale): SimpleDateFormat =
+        SimpleDateFormat("dd MMM yyyy - HH:mm", locale)
 
     fun relative(epochMs: Long, now: Long = System.currentTimeMillis()): String {
         val diff = now - epochMs

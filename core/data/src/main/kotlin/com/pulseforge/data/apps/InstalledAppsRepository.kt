@@ -63,7 +63,9 @@ class InstalledAppsRepository(private val context: Context) {
             if (includeSystemApps || !app.isSystemApp) apps.add(app)
         }
         installedPackages = installed
-        apps.sortedWith(compareByDescending<InstalledApp> { it.quickRisk.rank }.thenBy { it.displayTitle.lowercase() })
+        // Two stable sorts compute each key once; the old comparator lower-cased the title on
+        // every comparison. Same order: worst risk first, then title (case-insensitive).
+        apps.sortedBy { it.displayTitle.lowercase() }.sortedByDescending { it.quickRisk.rank }
     }
 
     /** Package metadata for one app, used when building the metadata-only report. */

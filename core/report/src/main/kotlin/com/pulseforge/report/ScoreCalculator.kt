@@ -116,13 +116,18 @@ object ScoreCalculator {
         apkSizeBytes: Long,
         rulesetVersion: String,
         coverage: List<String>
-    ): ScoreCard = ScoreCard(
-        security = securityScore(findings),
-        performance = performanceScore(performance, apkSizeBytes),
-        securityBreakdown = securityBreakdown(findings).sortedByDescending { it.points },
-        performanceBreakdown = performanceBreakdown(performance, apkSizeBytes).sortedByDescending { it.points },
-        rulesetVersion = rulesetVersion,
-        disclaimer = SECURITY_DISCLAIMER,
-        coverage = coverage
-    )
+    ): ScoreCard {
+        // Each breakdown was previously computed twice (once for the score, once for the list).
+        val security = securityBreakdown(findings)
+        val performanceComponents = performanceBreakdown(performance, apkSizeBytes)
+        return ScoreCard(
+            security = (100 - security.sumOf { it.points }).coerceIn(0, 100),
+            performance = (100 - performanceComponents.sumOf { it.points }).coerceIn(0, 100),
+            securityBreakdown = security.sortedByDescending { it.points },
+            performanceBreakdown = performanceComponents.sortedByDescending { it.points },
+            rulesetVersion = rulesetVersion,
+            disclaimer = SECURITY_DISCLAIMER,
+            coverage = coverage
+        )
+    }
 }

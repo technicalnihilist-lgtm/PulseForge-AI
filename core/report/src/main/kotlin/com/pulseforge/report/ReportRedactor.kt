@@ -12,13 +12,21 @@ import com.pulseforge.model.ScanReport
  */
 object ReportRedactor {
 
-    private val shapes = listOf(
-        Regex("""\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"""),
-        Regex("""\bAIza[0-9A-Za-z_\-]{30,45}\b"""),
-        Regex("""\bsk_live_[0-9A-Za-z]{16,}\b"""),
-        Regex("""\bxox[baprs]-[0-9A-Za-z\-]{10,}\b"""),
-        Regex("""\beyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}"""),
-        Regex("""-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----""")
+    /**
+     * One compiled alternation instead of six separate patterns. Every shape is masked the same
+     * way, so a single left-to-right pass over the text produces exactly the same output as the
+     * six sequential passes it replaces - and it walks each summary, detail and evidence value
+     * once rather than six times.
+     */
+    private val shapes = Regex(
+        "(?:" + listOf(
+            """\b(?:AKIA|ASIA)[0-9A-Z]{16}\b""",
+            """\bAIza[0-9A-Za-z_\-]{30,45}\b""",
+            """\bsk_live_[0-9A-Za-z]{16,}\b""",
+            """\bxox[baprs]-[0-9A-Za-z\-]{10,}\b""",
+            """\beyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}""",
+            """-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----"""
+        ).joinToString("|") + ")"
     )
 
     private val sensitiveQuery = Regex(
@@ -29,8 +37,7 @@ object ReportRedactor {
     private val userInfo = Regex("(://)([^/@\\s:]+)(:)([^/@\\s]+)(@)")
 
     fun redact(text: String): String {
-        var out = text
-        for (shape in shapes) out = shape.replace(out) { match -> mask(match.value) }
+        var out = shapes.replace(text) { match -> mask(match.value) }
         out = userInfo.replace(out) { "$1***:***$5" }
         out = sensitiveQuery.replace(out) { match -> match.groupValues[1] + mask(match.groupValues[2]) }
         return out

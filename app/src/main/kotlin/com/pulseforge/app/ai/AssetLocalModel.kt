@@ -18,7 +18,16 @@ class AssetLocalModel(private val context: Context) : LocalModelProvider {
         private const val MODEL_PATH = "models/pulseforge-lite.tflite"
     }
 
-    override fun describe(): LocalModelInfo = try {
+    /**
+     * Probed once. [describe] used to open the asset every time it was called - several times per
+     * composition on the About and Settings screens and twice per assistant answer - and each open
+     * is an AssetManager round trip.
+     */
+    private val info: LocalModelInfo by lazy { probe() }
+
+    override fun describe(): LocalModelInfo = info
+
+    private fun probe(): LocalModelInfo = try {
         val stream = context.assets.open(MODEL_PATH)
         val size = stream.available().toLong()
         stream.close()
