@@ -144,17 +144,34 @@ object DexParser {
         return DexIndex(mergedFacts, strings, refs, classes)
     }
 
-    /** A stable, curated subset of API usages kept in the serialised report. */
+    /** Prefixes worth keeping in the serialised report. Hoisted: the list was rebuilt per scan. */
+    private val API_USAGE_PREFIXES = listOf(
+        "Landroid/webkit/", "Ljavax/crypto/", "Ljava/security/", "Ljavax/net/ssl/", "Ljava/net/",
+        "Ldalvik/", "Ljava/lang/Runtime;", "Ljava/lang/reflect/", "Ljava/util/Random;",
+        "Lorg/apache/http/", "Lokhttp3/", "Landroid/telephony/", "Landroid/location/",
+        "Landroid/accounts/", "Landroid/hardware/", "Landroid/util/Log;",
+        "Landroid/content/pm/PackageManager;"
+    )
+
+    /**
+     * A stable, curated subset of API usages kept in the serialised report.
+     *
+     * One pass over the method-reference table collecting the matches, instead of a `filter` whose
+     * predicate walked all 17 prefixes through a freshly allocated list. Selection and order are
+     * unchanged: matching entries in map order, then the highest counts.
+     */
     fun summariseApiUsages(index: DexIndex, limit: Int = 120): List<ApiUsage> {
-        val interesting = listOf(
-            "Landroid/webkit/", "Ljavax/crypto/", "Ljava/security/", "Ljavax/net/ssl/", "Ljava/net/",
-            "Ldalvik/", "Ljava/lang/Runtime;", "Ljava/lang/reflect/", "Ljava/util/Random;",
-            "Lorg/apache/http/", "Lokhttp3/", "Landroid/telephony/", "Landroid/location/",
-            "Landroid/accounts/", "Landroid/hardware/", "Landroid/util/Log;",
-            "Landroid/content/pm/PackageManager;"
-        )
-        return index.methodRefs.entries
-            .filter { entry -> interesting.any { prefix -> entry.key.startsWith(prefix) } }
+        val matched = ArrayList<Map.Entry<String, Int>>()
+        for (entry in index.methodRefs.entries) {
+            val key = entry.key
+            for (prefix in API_USAGE_PREFIXES) {
+                if (key.startsWith(prefix)) {
+                    matched.add(entry)
+                    break
+                }
+            }
+        }
+        return matched
             .sortedByDescending { it.value }
             .take(limit)
             .map { (key, count) ->

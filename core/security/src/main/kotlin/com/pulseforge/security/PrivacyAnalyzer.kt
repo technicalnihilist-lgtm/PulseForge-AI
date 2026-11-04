@@ -33,6 +33,11 @@ object PrivacyAnalyzer {
         "Lcom/bytedance/" to "ByteDance SDK"
     )
 
+    /** Every signal prefix in map order, and the root they all share (empty when they differ). */
+    private val trackerPrefixes: List<String> = trackerSignals.keys.toList()
+    private val trackerPrefixRoot: String =
+        trackerPrefixes.map { it.take(5) }.distinct().singleOrNull() ?: ""
+
     fun analyse(input: ApkScanInput): PrivacyAnalysis {
         val manifest = input.facts.manifest
         val permissions = manifest?.requestedPermissions.orEmpty()
@@ -46,8 +51,19 @@ object PrivacyAnalyzer {
             )
         }
 
+        // One pass over the method-reference table instead of one full `any {}` scan per signal
+        // (17 passes over up to 120,000 keys). Keys outside the shared root are skipped outright.
+        val matchedPrefixes = HashSet<String>()
+        for (key in input.dex.methodRefs.keys) {
+            if (trackerPrefixRoot.isNotEmpty() && !key.startsWith(trackerPrefixRoot)) continue
+            for (prefix in trackerPrefixes) {
+                if (prefix in matchedPrefixes) continue
+                if (key.startsWith(prefix)) matchedPrefixes.add(prefix)
+            }
+        }
+
         val trackers = trackerSignals.entries
-            .filter { (prefix, _) -> input.dex.methodRefs.keys.any { it.startsWith(prefix) } }
+            .filter { (prefix, _) -> prefix in matchedPrefixes }
             .map { (prefix, name) ->
                 TrackerSignal(
                     name = name,

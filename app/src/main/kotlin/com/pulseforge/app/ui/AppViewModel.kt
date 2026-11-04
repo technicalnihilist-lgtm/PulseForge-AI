@@ -183,7 +183,9 @@ class AppViewModel(private val graph: AppGraph) : ViewModel() {
             _deviceScanning.value = true
             runCatching {
                 val apps = graph.installedApps.list(includeSystemApps = true)
-                DeviceOverviewBuilder.build(apps, cacheBytes())
+                // Scoring and the stable sorts run over every installed app: CPU work that used to
+                // run on the main thread as soon as the package list came back.
+                withContext(Dispatchers.Default) { DeviceOverviewBuilder.build(apps, cacheBytes()) }
             }.onSuccess { _deviceOverview.value = it }
                 .onFailure { _message.value = "Could not measure this device: ${it.message}" }
             _deviceScanning.value = false

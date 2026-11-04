@@ -15,7 +15,11 @@ data class ArchiveEntry(
     val isDirectory: Boolean,
     val method: Int
 ) {
-    val category: String get() = EntryCategory.of(path)
+    /**
+     * Computed once per entry. [EntryCategory.of] lower-cases the whole path, and the analyser asks
+     * for the category several times per entry (size grouping, largest entries, summary rows).
+     */
+    val category: String by lazy(LazyThreadSafetyMode.NONE) { EntryCategory.of(path) }
 }
 
 /** Groups archive paths into the buckets shown in the size-composition chart. */

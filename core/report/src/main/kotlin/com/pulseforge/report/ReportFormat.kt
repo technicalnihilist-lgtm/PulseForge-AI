@@ -33,8 +33,11 @@ object ReportFormat {
         else -> "%d m %d s".format(ms / 60_000, (ms % 60_000) / 1000)
     }
 
+    /** Compiled once: the export path built a new pattern for every file name it sanitised. */
+    private val unsafeFileNameChars = Regex("[^A-Za-z0-9._-]")
+
     fun fileBaseName(fileName: String): String {
-        val cleaned = fileName.substringBeforeLast('.').replace(Regex("[^A-Za-z0-9._-]"), "_")
+        val cleaned = fileName.substringBeforeLast('.').replace(unsafeFileNameChars, "_")
         return cleaned.ifBlank { "scan" }
     }
 

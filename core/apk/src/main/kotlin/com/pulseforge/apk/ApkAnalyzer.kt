@@ -316,13 +316,9 @@ class ApkAnalyzer(private val config: AnalysisConfig = AnalysisConfig()) {
     }
 
     private fun readAssetSamples(archive: ZipArchive, entries: List<ArchiveEntry>): Map<String, String> {
-        val textExtensions = setOf(
-            "json", "xml", "txt", "properties", "cfg", "conf", "yaml", "yml",
-            "js", "html", "htm", "csv", "pem", "env", "ini", "kt", "java"
-        )
         val candidates = entries
             .filter { it.path.startsWith("assets/") || it.path.startsWith("res/raw/") }
-            .filter { it.path.substringAfterLast('.', "").lowercase() in textExtensions }
+            .filter { it.path.substringAfterLast('.', "").lowercase() in TEXT_ASSET_EXTENSIONS }
             .filter { it.uncompressedBytes in 1..config.maxAssetTextBytes }
             .take(config.maxAssetTextFiles)
 
@@ -422,6 +418,15 @@ class ApkAnalyzer(private val config: AnalysisConfig = AnalysisConfig()) {
         return if (parts.size >= 3) parts[1] else "unknown"
     }
 }
+
+/**
+ * Extensions [ApkAnalyzer] samples as text. Hoisted to the file: the 17-element set (and its
+ * backing hash table) was allocated again for every scan.
+ */
+private val TEXT_ASSET_EXTENSIONS = setOf(
+    "json", "xml", "txt", "properties", "cfg", "conf", "yaml", "yml",
+    "js", "html", "htm", "csv", "pem", "env", "ini", "kt", "java"
+)
 
 internal fun formatBytes(bytes: Long): String {
     if (bytes < 1024) return "$bytes B"

@@ -123,14 +123,17 @@ object DeviceOverviewBuilder {
             )
         )
 
-        // Stable sorts in reverse priority order: each sort key is computed once per app instead
-        // of on every comparison. Same order: risk, then dangerous permissions, then title.
+        // Every sort key is computed once per app. The lower-cased title, the permission count and
+        // the risk rank used to be recomputed inside the comparators (n log n times). Same order:
+        // title, then dangerous permissions, then risk.
         val offenders = apps
-            .filter { it.quickRisk.rank >= Severity.MEDIUM.rank }
-            .sortedBy { it.displayTitle.lowercase() }
-            .sortedByDescending { it.dangerousPermissionCount }
-            .sortedByDescending { it.quickRisk.rank }
+            .map { app -> RankedApp(app.displayTitle.lowercase(), app.dangerousPermissionCount, app.quickRisk.rank, app) }
+            .filter { it.risk >= Severity.MEDIUM.rank }
+            .sortedBy { it.title }
+            .sortedByDescending { it.dangerous }
+            .sortedByDescending { it.risk }
             .take(10)
+            .map { it.app }
 
         return DeviceOverview(
             scannedApps = apps.size,
@@ -149,6 +152,14 @@ object DeviceOverviewBuilder {
             )
         )
     }
+
+    /** One offender with its sort keys precomputed, so no comparator re-derives them. */
+    private data class RankedApp(
+        val title: String,
+        val dangerous: Int,
+        val risk: Int,
+        val app: InstalledApp
+    )
 
     private fun names(apps: List<InstalledApp>, limit: Int = 4): String =
         apps.take(limit).joinToString(", ") { it.displayTitle } +

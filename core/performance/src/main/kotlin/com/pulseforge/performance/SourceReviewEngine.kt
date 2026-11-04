@@ -195,11 +195,23 @@ object SourceReviewEngine {
                 continue
             }
             val lines = file.content.lines()
-            for (rule in rules) {
-                var hits = 0
-                for ((index, line) in lines.withIndex()) {
-                    if (hits >= rule.maxHits) break
+            // One pass over the file for every rule. The previous version re-walked every line once
+            // per rule: 12 regex scans of up to 2 MB of source. The result is unchanged - the first
+            // maxHits matching line numbers per rule, then emitted rule by rule.
+            val hitsByRule = HashMap<String, MutableList<Int>>(rules.size)
+            for (index in lines.indices) {
+                val line = lines[index]
+                for (rule in rules) {
+                    val hits = hitsByRule.getOrPut(rule.id) { mutableListOf() }
+                    if (hits.size >= rule.maxHits) continue
                     if (!rule.pattern.containsMatchIn(line)) continue
+                    hits.add(index)
+                }
+            }
+            for (rule in rules) {
+                val hits = hitsByRule[rule.id] ?: continue
+                for (index in hits) {
+                    val line = lines[index]
                     val indent = line.takeWhile { it == ' ' || it == '\t' }
                     suggestions.add(
                         SourceSuggestion(
@@ -215,7 +227,6 @@ object SourceReviewEngine {
                             confidence = rule.confidence
                         )
                     )
-                    hits++
                 }
             }
         }

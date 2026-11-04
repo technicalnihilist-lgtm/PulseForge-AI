@@ -63,9 +63,13 @@ class InstalledAppsRepository(private val context: Context) {
             if (includeSystemApps || !app.isSystemApp) apps.add(app)
         }
         installedPackages = installed
-        // Two stable sorts compute each key once; the old comparator lower-cased the title on
-        // every comparison. Same order: worst risk first, then title (case-insensitive).
-        apps.sortedBy { it.displayTitle.lowercase() }.sortedByDescending { it.quickRisk.rank }
+        // `sortedBy { it.displayTitle.lowercase() }` still ran the lower-case inside the comparator,
+        // so it allocated on every comparison. Both sort keys are now computed once per app, and
+        // the two stable sorts give the same order: worst risk first, then title (case-insensitive).
+        apps.map { app -> Triple(app.displayTitle.lowercase(), app.quickRisk.rank, app) }
+            .sortedBy { it.first }
+            .sortedByDescending { it.second }
+            .map { it.third }
     }
 
     /** Package metadata for one app, used when building the metadata-only report. */
