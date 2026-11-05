@@ -67,7 +67,42 @@ class ZipArchive private constructor(
                 "Large entries are skipped to keep memory bounded. Nothing was executed."
             )
         }
-        return zip.getInputStream(entry).use { it.readBytes() }
+        return zip.getInputStream(entry).use { input -> readExactly(input, entry.size) }
+    }
+
+    /**
+     * Reads one entry into a single exactly-sized array.
+     *
+     * The central directory already declares the uncompressed size, so the buffer is allocated once
+     * and filled in place. [java.io.InputStream.readBytes] instead grows a buffer and copies it on
+     * every doubling, which doubled the peak memory and the garbage for a multi-MB `resources.arsc`.
+     * A short or long entry (a header that disagrees with the data) still yields exactly the bytes
+     * the stream produced, so callers see no difference.
+     */
+    private fun readExactly(input: java.io.InputStream, declared: Long): ByteArray {
+        if (declared <= 0L || declared > Int.MAX_VALUE) return input.readBytes()
+        val buffer = ByteArray(declared.toInt())
+        var total = 0
+        while (total < buffer.size) {
+            val read = input.read(buffer, total, buffer.size - total)
+            if (read <= 0) break
+            total += read
+        }
+        if (total == buffer.size) {
+            val extra = input.read()
+            if (extra < 0) return buffer
+            val rest = input.readBytes()
+            return ByteArray(buffer.size + 1 + rest.size).also { out ->
+                System.arraycopy(buffer, 0, out, 0, buffer.size)
+                out[buffer.size] = extra.toByte()
+                System.arraycopy(rest, 0, out, buffer.size + 1, rest.size)
+            }
+        }
+        val rest = input.readBytes()
+        return ByteArray(total + rest.size).also { out ->
+            System.arraycopy(buffer, 0, out, 0, total)
+            System.arraycopy(rest, 0, out, total, rest.size)
+        }
     }
 
     /** Reads only the first [maxBytes] of an entry, for header sniffing without loading the whole file. */

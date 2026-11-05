@@ -11,11 +11,14 @@ object RuntimeExecRule : SecurityRule {
     override val id = "PF-COD-001"
     override val title = "Process execution"
 
+    /** Compiled once: the rule is evaluated on every scan, and a pattern is immutable once built. */
+    private val commandPattern = Regex("""\b(logcat|su|sh|pm |am |getprop|chmod)\b""")
+
     override fun evaluate(ctx: RuleContext): List<Finding> {
         val exec = ctx.occurrences("Ljava/lang/Runtime;", "exec") +
             ctx.occurrences("Ljava/lang/ProcessBuilder;", "start")
         if (exec == 0) return emptyList()
-        val commands = ctx.strings.regexMatches(Regex("""\b(logcat|su|sh|pm |am |getprop|chmod)\b"""), limit = 5)
+        val commands = ctx.strings.regexMatches(commandPattern, limit = 5)
         return listOf(
             finding(
                 ruleId = id,
@@ -186,12 +189,45 @@ object DependencyRules : SecurityRule {
         "Lio/flutter/" to "Flutter runtime"
     )
 
+    /** Every prefix this rule looks for, built once instead of on each evaluation. */
+    private val allPrefixes: List<String> = deprecated.keys.toList() + sdkPrefixes.keys.toList()
+
+    /**
+     * One pass over the DEX tables finds every prefix at once.
+     *
+     * Each prefix used to walk the whole method table and class list on its own, so an APK with
+     * 120k method references paid 21 full scans of both collections. Now both collections are read
+     * once, and a prefix drops out of the candidate list as soon as it matches.
+     */
+    private fun matchedPrefixes(ctx: RuleContext): Set<String> {
+        val matched = HashSet<String>(8)
+        val pending = ArrayList(allPrefixes)
+        if (pending.isEmpty()) return matched
+        val tables: List<Collection<String>> = listOf(ctx.dex.methodRefs.keys, ctx.dex.definedClasses)
+        for (table in tables) {
+            for (entry in table) {
+                var index = 0
+                while (index < pending.size) {
+                    val prefix = pending[index]
+                    if (entry.startsWith(prefix)) {
+                        matched.add(prefix)
+                        // At most 21 removals per scan, and a found prefix stops being compared.
+                        pending.removeAt(index)
+                    } else {
+                        index++
+                    }
+                }
+                if (pending.isEmpty()) return matched
+            }
+        }
+        return matched
+    }
+
     override fun evaluate(ctx: RuleContext): List<Finding> {
         val findings = mutableListOf<Finding>()
 
-        val usedDeprecated = deprecated.keys.filter { prefix ->
-            ctx.dex.methodRefs.keys.any { it.startsWith(prefix) } || ctx.dex.definedClasses.any { it.startsWith(prefix) }
-        }
+        val matched = matchedPrefixes(ctx)
+        val usedDeprecated = deprecated.keys.filter { prefix -> prefix in matched }
         if (usedDeprecated.isNotEmpty()) {
             findings.add(
                 finding(
@@ -215,7 +251,7 @@ object DependencyRules : SecurityRule {
         }
 
         val detected = sdkPrefixes.entries
-            .filter { (prefix, _) -> ctx.dex.methodRefs.keys.any { it.startsWith(prefix) } }
+            .filter { (prefix, _) -> prefix in matched }
             .map { it.value }
             .distinct()
             .sorted()

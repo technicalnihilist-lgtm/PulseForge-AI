@@ -347,9 +347,15 @@ private fun SecurityTab(report: ScanReport, modifier: Modifier) {
     var severityFilter by remember { mutableStateOf<Severity?>(null) }
     var confirmedOnly by remember { mutableStateOf(false) }
 
-    val findings = report.findings
-        .filter { severityFilter == null || it.severity == severityFilter }
-        .filter { !confirmedOnly || it.isConfirmedObservation }
+    // Both filters in one pass, recomputed only when the report or a filter actually changes. The
+    // two chained filter() calls used to rebuild the list on every recomposition of the tab, which
+    // includes every chip selection and every scroll-driven recomposition of the header.
+    val findings = remember(report.findings, severityFilter, confirmedOnly) {
+        report.findings.filter { finding ->
+            (severityFilter == null || finding.severity == severityFilter) &&
+                (!confirmedOnly || finding.isConfirmedObservation)
+        }
+    }
 
     Column(modifier) {
         Row(

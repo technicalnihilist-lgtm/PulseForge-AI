@@ -91,7 +91,12 @@ class FileVault(private val context: Context) {
         }
     }
 
-    fun sizeOf(scanId: String): Long = apkFileFor(scanId).let { if (it.exists()) it.length() else 0L }
+    /**
+     * One stat per scan, not two. [File.length] already returns 0 for a path that does not exist, so
+     * the extra [File.exists] check only doubled the number of disk calls - and this runs on the
+     * main thread from the Settings screen, once per history row.
+     */
+    fun sizeOf(scanId: String): Long = apkFileFor(scanId).length()
 
     private fun verifyZipMagic(file: File) {
         if (file.length() < 4) {

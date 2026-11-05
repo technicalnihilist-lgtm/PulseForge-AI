@@ -198,18 +198,34 @@ object SourceReviewEngine {
             // One pass over the file for every rule. The previous version re-walked every line once
             // per rule: 12 regex scans of up to 2 MB of source. The result is unchanged - the first
             // maxHits matching line numbers per rule, then emitted rule by rule.
-            val hitsByRule = HashMap<String, MutableList<Int>>(rules.size)
+            //
+            // Hits are indexed by rule position rather than by rule id: the old map lookup on a
+            // String key ran once per line per rule (roughly 700k hash lookups for a 2 MB file), and
+            // a rule that already had maxHits kept being looked up. A rule is now dropped from the
+            // scan as soon as it is full, and the line loop stops when every rule is full.
+            val hitsByRule = arrayOfNulls<MutableList<Int>>(rules.size)
+            var activeRules = rules.size
             for (index in lines.indices) {
                 val line = lines[index]
-                for (rule in rules) {
-                    val hits = hitsByRule.getOrPut(rule.id) { mutableListOf() }
-                    if (hits.size >= rule.maxHits) continue
+                for (ruleIndex in rules.indices) {
+                    val rule = rules[ruleIndex]
+                    val hits = hitsByRule[ruleIndex]
+                    if (hits != null && hits.size >= rule.maxHits) continue
                     if (!rule.pattern.containsMatchIn(line)) continue
-                    hits.add(index)
+                    if (hits == null) {
+                        val created = mutableListOf(index)
+                        hitsByRule[ruleIndex] = created
+                        if (created.size >= rule.maxHits) activeRules--
+                    } else {
+                        hits.add(index)
+                        if (hits.size >= rule.maxHits) activeRules--
+                    }
                 }
+                if (activeRules == 0) break
             }
-            for (rule in rules) {
-                val hits = hitsByRule[rule.id] ?: continue
+            for (ruleIndex in rules.indices) {
+                val rule = rules[ruleIndex]
+                val hits = hitsByRule[ruleIndex] ?: continue
                 for (index in hits) {
                     val line = lines[index]
                     val indent = line.takeWhile { it == ' ' || it == '\t' }

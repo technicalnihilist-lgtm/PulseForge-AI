@@ -29,15 +29,28 @@ object ReportDiff {
         val before = baseline.findings.associateBy { key(it) }
         val after = candidate.findings.associateBy { key(it) }
 
+        // Two passes over the two maps, and no intermediate map copies. filterKeys() built a fresh
+        // LinkedHashMap for each side and values.toList() copied again, so the old version walked
+        // the findings five times and allocated two maps to produce two lists.
+        val resolved = ArrayList<Finding>(before.size)
+        for ((findingKey, finding) in before) {
+            if (findingKey !in after) resolved.add(finding)
+        }
+        val added = ArrayList<Finding>(after.size)
+        var unchanged = 0
+        for ((findingKey, finding) in after) {
+            if (findingKey in before) unchanged++ else added.add(finding)
+        }
+
         return Delta(
             baseline = baseline,
             candidate = candidate,
             sizeDeltaBytes = candidate.apk.fileSizeBytes - baseline.apk.fileSizeBytes,
             scoreDelta = deltaOrNull(baseline.scoring.security, candidate.scoring.security),
             performanceDelta = deltaOrNull(baseline.scoring.performance, candidate.scoring.performance),
-            findingsResolved = before.filterKeys { it !in after }.values.toList(),
-            findingsAdded = after.filterKeys { it !in before }.values.toList(),
-            findingsUnchanged = before.keys.count { it in after }
+            findingsResolved = resolved,
+            findingsAdded = added,
+            findingsUnchanged = unchanged
         )
     }
 

@@ -15,12 +15,26 @@ import com.pulseforge.model.Severity
 object DeviceOverviewBuilder {
 
     fun build(apps: List<InstalledApp>, reclaimableBytes: Long): DeviceOverview {
-        val userApps = apps.filterNot { it.isSystemApp }
-        val debuggable = apps.filter { it.isDebuggable }
-        val riskyPermissions = apps.filter { it.dangerousPermissionCount >= 8 }
-        val wideSurface = apps.filter { it.exportedComponentCount >= 5 }
-        val outdated = userApps.filter { (it.targetSdk ?: 0) in 1..29 }
-        val installers = userApps.count { it.installer == null }
+        // One pass over the app list. The old version filtered it five times (user apps, debuggable,
+        // permission-heavy, wide surface, outdated) and counted twice more, so a 400-app device
+        // walked the list seven times to build the same six numbers.
+        val debuggable = ArrayList<InstalledApp>(4)
+        val riskyPermissions = ArrayList<InstalledApp>(4)
+        val wideSurface = ArrayList<InstalledApp>(4)
+        val outdated = ArrayList<InstalledApp>(8)
+        var installers = 0
+        var systemApps = 0
+        for (app in apps) {
+            if (app.isDebuggable) debuggable.add(app)
+            if (app.dangerousPermissionCount >= 8) riskyPermissions.add(app)
+            if (app.exportedComponentCount >= 5) wideSurface.add(app)
+            if (app.isSystemApp) {
+                systemApps++
+            } else {
+                if ((app.targetSdk ?: 0) in 1..29) outdated.add(app)
+                if (app.installer == null) installers++
+            }
+        }
 
         val breakdown = buildList {
             if (debuggable.isNotEmpty()) {
@@ -137,7 +151,7 @@ object DeviceOverviewBuilder {
 
         return DeviceOverview(
             scannedApps = apps.size,
-            systemApps = apps.count { it.isSystemApp },
+            systemApps = systemApps,
             score = score,
             breakdown = breakdown,
             categories = categories,

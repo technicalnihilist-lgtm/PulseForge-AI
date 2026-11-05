@@ -67,10 +67,17 @@ fun InstalledAppsScreen(
     onOpenSettings: (String) -> Unit
 ) {
     var query by remember { mutableStateOf("") }
-    val visible = apps.filter { app ->
-        query.isBlank() ||
-            app.label.contains(query, ignoreCase = true) ||
-            app.packageName.contains(query, ignoreCase = true)
+    // Filtered once per (list, query) pair instead of on every recomposition. The search field
+    // recomposes this screen on each keystroke, and the list is re-read whenever a scan updates.
+    val visible = remember(apps, query) {
+        if (query.isBlank()) {
+            apps
+        } else {
+            apps.filter { app ->
+                app.label.contains(query, ignoreCase = true) ||
+                    app.packageName.contains(query, ignoreCase = true)
+            }
+        }
     }
 
     Scaffold(
