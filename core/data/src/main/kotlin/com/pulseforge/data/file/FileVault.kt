@@ -23,6 +23,9 @@ class FileVault(private val context: Context) {
      */
     private val root: File by lazy { File(context.filesDir, "scans").apply { mkdirs() } }
 
+    /** Sizes already measured, guarded by its own monitor; see [sizeOf]. */
+    private val sizes = HashMap<String, Long>()
+
     fun directoryFor(scanId: String): File = File(root, scanId)
 
     fun apkFileFor(scanId: String): File = File(directoryFor(scanId), "input.apk")
@@ -60,6 +63,8 @@ class FileVault(private val context: Context) {
                     }
                 }
                 verifyZipMagic(target)
+                // The bytes were just written, so the size is known without another stat later.
+                synchronized(sizes) { sizes[scanId] = target.length() }
                 target
             } catch (e: ApkException) {
                 target.delete()
@@ -77,17 +82,22 @@ class FileVault(private val context: Context) {
 
     fun delete(scanId: String) {
         directoryFor(scanId).deleteRecursively()
+        synchronized(sizes) { sizes.remove(scanId) }
     }
 
     fun deleteAll() {
         root.deleteRecursively()
         root.mkdirs()
+        synchronized(sizes) { sizes.clear() }
     }
 
     /** Removes vault directories that no longer have a matching scan row. */
     fun cleanOrphans(keepIds: Set<String>) {
         root.listFiles()?.forEach { dir ->
-            if (dir.isDirectory && dir.name !in keepIds) dir.deleteRecursively()
+            if (dir.isDirectory && dir.name !in keepIds) {
+                dir.deleteRecursively()
+                synchronized(sizes) { sizes.remove(dir.name) }
+            }
         }
     }
 
@@ -95,8 +105,15 @@ class FileVault(private val context: Context) {
      * One stat per scan, not two. [File.length] already returns 0 for a path that does not exist, so
      * the extra [File.exists] check only doubled the number of disk calls - and this runs on the
      * main thread from the Settings screen, once per history row.
+     *
+     * The answer is remembered per scan id because the same rows are asked for repeatedly - the
+     * Settings screen on every recomposition and the device overview on every scan - and each miss
+     * was another `stat` on the calling thread. Entries are dropped whenever the file they describe
+     * is written or removed, so the cached size cannot go stale.
      */
-    fun sizeOf(scanId: String): Long = apkFileFor(scanId).length()
+    fun sizeOf(scanId: String): Long = synchronized(sizes) {
+        sizes.getOrPut(scanId) { apkFileFor(scanId).length() }
+    }
 
     private fun verifyZipMagic(file: File) {
         if (file.length() < 4) {

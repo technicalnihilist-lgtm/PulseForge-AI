@@ -12,10 +12,33 @@ interface ScanDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(scan: ScanEntity)
 
-    @Query("SELECT * FROM scans ORDER BY startedAtEpochMs DESC")
+    /**
+     * The list queries leave [ScanEntity.reportJson] out on purpose. It is the largest column - a
+     * whole report per row - and no list or dashboard reads it; `SELECT *` made Room copy every
+     * stored report out of SQLite into the heap on each history invalidation. Room falls back to the
+     * property default (null) for a column the query does not return; the repository loads the JSON
+     * itself when a report is actually opened.
+     */
+    @Query(
+        """
+        SELECT id, displayName, packageName, versionName, fileSizeBytes, sha256, status, stage,
+            progress, message, securityScore, performanceScore, criticalCount, highCount,
+            mediumCount, lowCount, infoCount, startedAtEpochMs, finishedAtEpochMs, durationMs,
+            errorCode, errorMessage, errorHint, isSampleData, keptApkPath
+        FROM scans ORDER BY startedAtEpochMs DESC
+        """
+    )
     fun observeAll(): Flow<List<ScanEntity>>
 
-    @Query("SELECT * FROM scans ORDER BY startedAtEpochMs DESC LIMIT :limit")
+    @Query(
+        """
+        SELECT id, displayName, packageName, versionName, fileSizeBytes, sha256, status, stage,
+            progress, message, securityScore, performanceScore, criticalCount, highCount,
+            mediumCount, lowCount, infoCount, startedAtEpochMs, finishedAtEpochMs, durationMs,
+            errorCode, errorMessage, errorHint, isSampleData, keptApkPath
+        FROM scans ORDER BY startedAtEpochMs DESC LIMIT :limit
+        """
+    )
     fun observeRecent(limit: Int): Flow<List<ScanEntity>>
 
     @Query("SELECT * FROM scans WHERE id = :id")

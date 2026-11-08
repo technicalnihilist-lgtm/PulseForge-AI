@@ -140,7 +140,14 @@ class ScanRepository(private val dao: ScanDao, private val vault: FileVault) {
 
     suspend fun completedReports(limit: Int = 10): List<Pair<ScanEntity, ScanReport>> =
         dao.completed(limit).mapNotNull { entity ->
-            val json = entity.reportJson ?: return@mapNotNull null
-            runCatching { JsonReportWriter.read(json) }.getOrNull()?.let { entity to it }
+            // A report that was opened recently is already parsed. Without this the dashboard and
+            // history re-parsed up to ten whole report documents on every call.
+            val cached = synchronized(reportCache) { reportCache[entity.id] }
+            val report = cached ?: entity.reportJson?.let { json ->
+                runCatching { JsonReportWriter.read(json) }.getOrNull()?.also { parsed ->
+                    synchronized(reportCache) { reportCache[entity.id] = parsed }
+                }
+            } ?: return@mapNotNull null
+            entity to report
         }
 }

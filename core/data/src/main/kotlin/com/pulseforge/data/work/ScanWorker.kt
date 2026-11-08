@@ -7,6 +7,7 @@ import androidx.work.workDataOf
 import com.pulseforge.apk.ApkException
 import com.pulseforge.data.ScanRepository
 import com.pulseforge.model.ScanErrorCode
+import com.pulseforge.model.ScanStage
 import com.pulseforge.model.ScanStatus
 import com.pulseforge.report.ScanPipeline
 import kotlinx.coroutines.CancellationException
@@ -34,12 +35,22 @@ class ScanWorker(
 
         val file = File(path)
         var lastWrite = 0L
+        var lastStage: ScanStage? = null
+        var lastFraction = -1f
+        var lastMessage: String? = null
 
         try {
             val report = pipeline.run(file, displayName) { stage, fraction, message ->
                 val now = System.currentTimeMillis()
-                if (now - lastWrite > 150 || fraction >= 1f) {
+                // The analyser can report the same stage and message more than once (retries inside
+                // a parser). Re-sending an identical row cost a database write plus a WorkManager
+                // progress broadcast for information the UI already had.
+                val changed = stage != lastStage || fraction != lastFraction || message != lastMessage
+                if (changed && (now - lastWrite > 150 || fraction >= 1f)) {
                     lastWrite = now
+                    lastStage = stage
+                    lastFraction = fraction
+                    lastMessage = message
                     repository.updateProgress(scanId, stage.name, fraction, message)
                     setProgress(workDataOf(KEY_PROGRESS to fraction, KEY_STAGE to stage.name, KEY_MESSAGE to message))
                 }

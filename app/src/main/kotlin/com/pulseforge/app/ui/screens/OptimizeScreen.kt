@@ -301,8 +301,17 @@ private fun impactColor(impact: Impact): Color = when (impact) {
 
 private fun impactSplit(plan: List<PlannedAction>): String {
     if (plan.isEmpty()) return "none"
-    val high = plan.count { it.impact == Impact.HIGH }
-    val medium = plan.count { it.impact == Impact.MEDIUM }
-    val low = plan.count { it.impact == Impact.LOW }
+    // One pass instead of three: the summary line is rebuilt on every recomposition of the plan
+    // header, and each count() walked the whole plan again.
+    var high = 0
+    var medium = 0
+    var low = 0
+    for (action in plan) {
+        when (action.impact) {
+            Impact.HIGH -> high++
+            Impact.MEDIUM -> medium++
+            Impact.LOW -> low++
+        }
+    }
     return "$high high, $medium medium, $low low"
 }

@@ -51,8 +51,21 @@ class AppViewModel(private val graph: AppGraph) : ViewModel() {
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message.asStateFlow()
 
-    fun observeScan(id: String): StateFlow<ScanEntity?> = graph.repository.observeScan(id)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    /**
+     * One flow per scan id, created once.
+     *
+     * [ScanScreen] asks for this inside composition, so the old version registered a fresh Room
+     * observer and started a new coroutine on every recomposition - a Binder-free but still real
+     * query per frame while progress ticked. The map keeps a single observer per opened scan.
+     */
+    private val scanFlows = HashMap<String, StateFlow<ScanEntity?>>()
+
+    fun observeScan(id: String): StateFlow<ScanEntity?> = synchronized(scanFlows) {
+        scanFlows.getOrPut(id) {
+            graph.repository.observeScan(id)
+                .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+        }
+    }
 
     // ------------------------------------------------------------------ import & scan
 
@@ -212,9 +225,12 @@ class AppViewModel(private val graph: AppGraph) : ViewModel() {
                     total += directorySize(child)
                     child.deleteRecursively()
                 }
+                // The orphan sweep reads every scan id from SQLite and walks the vault tree. It ran
+                // on the main dispatcher right after the cache delete, so the UI thread waited for
+                // a query plus a directory listing; it belongs inside the IO block with the rest.
+                runCatching { graph.repository.cleanOrphans() }
                 total
             }
-            runCatching { graph.repository.cleanOrphans() }
             _message.value = "Freed ${formatBytes(freed)} of PulseForge cache"
             buildDeviceOverview()
         }

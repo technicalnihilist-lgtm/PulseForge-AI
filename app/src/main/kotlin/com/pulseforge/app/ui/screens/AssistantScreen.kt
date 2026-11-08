@@ -65,7 +65,9 @@ fun AssistantScreen(
     onSelectScan: (String) -> Unit,
     onOpenReport: (String) -> Unit
 ) {
-    val completed = scans.filter { it.status == "COMPLETED" }
+    // Keyed on the list: the question field recomposes this screen on every keystroke, and the
+    // filter used to walk the whole history each time.
+    val completed = remember(scans) { scans.filter { it.status == "COMPLETED" } }
     var menuOpen by remember { mutableStateOf(false) }
     var input by remember { mutableStateOf("") }
     val turns = remember { mutableStateListOf<ChatTurn>() }

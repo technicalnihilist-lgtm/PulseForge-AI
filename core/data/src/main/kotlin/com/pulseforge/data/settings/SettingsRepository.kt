@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
 private val Context.dataStore by preferencesDataStore(name = "pulseforge_settings")
@@ -30,7 +31,14 @@ class SettingsRepository(private val context: Context) {
         val OWNS_SOURCE = booleanPreferencesKey("user_owns_source")
     }
 
-    val settings: Flow<AppSettings> = context.dataStore.data.map { prefs -> prefs.toSettings() }
+    /**
+     * DataStore emits the whole preference map after any write, so re-selecting the current theme or
+     * toggling an unrelated key pushed an equal [AppSettings] downstream and re-applied the theme.
+     * [distinctUntilChanged] drops those duplicates.
+     */
+    val settings: Flow<AppSettings> = context.dataStore.data
+        .map { prefs -> prefs.toSettings() }
+        .distinctUntilChanged()
 
     suspend fun setThemeMode(mode: ThemeMode) {
         context.dataStore.edit { it[Keys.THEME] = mode.name }
@@ -49,8 +57,9 @@ class SettingsRepository(private val context: Context) {
     }
 
     private fun Preferences.toSettings(): AppSettings = AppSettings(
-        themeMode = runCatching { ThemeMode.valueOf(this[Keys.THEME] ?: ThemeMode.SYSTEM.name) }
-            .getOrDefault(ThemeMode.SYSTEM),
+        // `ThemeMode.valueOf` built and threw an IllegalArgumentException for any stored value that
+        // no longer names a constant, on every emission; a lookup returns the fallback directly.
+        themeMode = ThemeMode.entries.firstOrNull { it.name == this[Keys.THEME] } ?: ThemeMode.SYSTEM,
         deepScan = this[Keys.DEEP_SCAN] ?: true,
         keepApkCopy = this[Keys.KEEP_COPY] ?: true,
         userOwnsSource = this[Keys.OWNS_SOURCE] ?: false
