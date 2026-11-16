@@ -3,6 +3,7 @@ package com.pulseforge.report
 import com.pulseforge.model.ScanReport
 import com.pulseforge.performance.OptimizationRecipe
 import com.pulseforge.performance.PlannedAction
+import java.util.Locale
 
 /**
  * Writes the optimization plan as Markdown, so it can leave the app and be pasted into a ticket,
@@ -91,9 +92,10 @@ object OptimizationPlanWriter {
         appendLine("- An installed third-party app cannot be modified at all: use the system App-info screen to revoke permissions or uninstall.")
     }
 
+    /** Locale.ROOT: the plan is exported, so it must not follow the phone's locale. */
     private fun formatBytes(bytes: Long): String = when {
         bytes < 1024 -> "$bytes B"
-        bytes < 1024 * 1024 -> "%.1f KB".format(bytes / 1024.0)
-        else -> "%.1f MB".format(bytes / (1024.0 * 1024))
+        bytes < 1024 * 1024 -> String.format(Locale.ROOT, "%.1f KB", bytes / 1024.0)
+        else -> String.format(Locale.ROOT, "%.1f MB", bytes / (1024.0 * 1024))
     }
 }

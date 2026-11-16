@@ -10,6 +10,7 @@ import com.pulseforge.model.MeasuredMetric
 import com.pulseforge.model.OptimizationAction
 import com.pulseforge.model.PerformanceAnalysis
 import com.pulseforge.model.UnavailableMetric
+import java.util.Locale
 
 /**
  * Turns measurements from the APK into a performance report.
@@ -326,16 +327,19 @@ object PerformanceAnalyzer {
         return best
     }
 
+    /** Locale.ROOT: these values are written into the report, so they must not follow the phone. */
     private fun formatBytes(bytes: Long): String = when {
         bytes < 1024 -> "$bytes B"
-        bytes < 1024 * 1024 -> "%.1f KB".format(bytes / 1024.0)
-        bytes < 1024L * 1024 * 1024 -> "%.1f MB".format(bytes / (1024.0 * 1024))
-        else -> "%.2f GB".format(bytes / (1024.0 * 1024 * 1024))
+        bytes < 1024 * 1024 -> String.format(Locale.ROOT, "%.1f KB", bytes / 1024.0)
+        bytes < 1024L * 1024 * 1024 -> String.format(Locale.ROOT, "%.1f MB", bytes / (1024.0 * 1024))
+        else -> String.format(Locale.ROOT, "%.2f GB", bytes / (1024.0 * 1024 * 1024))
     }
 
-    private fun formatCount(value: Int): String = if (value >= 1000) "%,d".format(value) else value.toString()
+    private fun formatCount(value: Int): String =
+        if (value >= 1000) String.format(Locale.ROOT, "%,d", value) else value.toString()
 
-    private fun percent(part: Long, total: Long): String = if (total <= 0) "n/a" else "%.0f%%".format(part * 100.0 / total)
+    private fun percent(part: Long, total: Long): String =
+        if (total <= 0) "n/a" else String.format(Locale.ROOT, "%.0f%%", part * 100.0 / total)
 
     fun totalMeasuredBytes(composition: List<CategorySize>): Long = composition.sumOf { it.bytes }
 }
