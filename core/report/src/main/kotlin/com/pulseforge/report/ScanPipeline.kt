@@ -64,17 +64,7 @@ class ScanPipeline(
             engine = EngineInfo(
                 appVersion = appVersion,
                 ruleSetVersion = RuleCatalog.VERSION,
-                analyzers = listOf(
-                    "APK ZIP reader",
-                    "Binary XML (AXML) parser",
-                    "DEX table parser",
-                    "resources.arsc string pool",
-                    "APK Signing Block reader",
-                    "apksig verifier",
-                    "Security rule set ${RuleCatalog.VERSION}",
-                    "Performance analyser",
-                    "Privacy analyser"
-                )
+                analyzers = ANALYZERS
             ),
             apk = input.facts,
             findings = findings,
@@ -96,6 +86,22 @@ class ScanPipeline(
     }
 
     companion object {
+        /**
+         * Identical for every scan, so it is built once. It used to be a fresh nine-element list
+         * (and a fresh string for the rule-set line) inside every report.
+         */
+        val ANALYZERS: List<String> = listOf(
+            "APK ZIP reader",
+            "Binary XML (AXML) parser",
+            "DEX table parser",
+            "resources.arsc string pool",
+            "APK Signing Block reader",
+            "apksig verifier",
+            "Security rule set ${RuleCatalog.VERSION}",
+            "Performance analyser",
+            "Privacy analyser"
+        )
+
         val LIMITATIONS: List<String> = listOf(
             "Static analysis only: the APK is never installed, loaded into a class loader or executed.",
             "A finding describes what the code can do, not what it does at runtime.",
