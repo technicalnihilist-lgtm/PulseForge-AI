@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.Locale
 
 /** One view model for the whole app: the state is small and every screen needs the same graph. */
 class AppViewModel(private val graph: AppGraph) : ViewModel() {
@@ -242,10 +243,11 @@ class AppViewModel(private val graph: AppGraph) : ViewModel() {
         return dir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
     }
 
+    /** Locale.ROOT so the message reads the same on every device (see ReportFormat.bytes). */
     private fun formatBytes(bytes: Long): String = when {
         bytes < 1024 -> "$bytes B"
-        bytes < 1024 * 1024 -> "%.1f KB".format(bytes / 1024.0)
-        else -> "%.1f MB".format(bytes / (1024.0 * 1024))
+        bytes < 1024 * 1024 -> String.format(Locale.ROOT, "%.1f KB", bytes / 1024.0)
+        else -> String.format(Locale.ROOT, "%.1f MB", bytes / (1024.0 * 1024))
     }
 
     // ------------------------------------------------------------------ reports
