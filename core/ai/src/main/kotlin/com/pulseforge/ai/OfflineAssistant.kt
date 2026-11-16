@@ -394,11 +394,15 @@ class OfflineAssistant(private val modelProvider: LocalModelProvider = NoLocalMo
         Confidence.LOW -> "low confidence - treat as a lead"
     }
 
-    private fun modelNote(): String = if (modelProvider.describe().available) {
-        "Answered by the bundled on-device model ${modelProvider.describe().name}."
-    } else {
-        "Deterministic engine - no language model is bundled or used. Every statement above is generated from " +
-            "fields in this report."
+    /** One describe() call: it was queried twice per answer, once for the flag and once for the name. */
+    private fun modelNote(): String {
+        val info = modelProvider.describe()
+        return if (info.available) {
+            "Answered by the bundled on-device model ${info.name}."
+        } else {
+            "Deterministic engine - no language model is bundled or used. Every statement above is generated from " +
+                "fields in this report."
+        }
     }
 
     private fun String.containsAny(vararg needles: String): Boolean = needles.any { this.contains(it) }

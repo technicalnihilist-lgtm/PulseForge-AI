@@ -20,6 +20,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.Locale
 import kotlin.coroutines.coroutineContext
 
 /** Tunables for a scan. Defaults let a mid-range phone analyse a 300 MB APK. */
@@ -216,10 +217,19 @@ class ApkAnalyzer(private val config: AnalysisConfig = AnalysisConfig()) {
         arscStringCount: Int,
         warnings: MutableList<ParseWarning>
     ): ResourceFacts {
-        val byCategory = entries
-            .groupBy { it.category }
-            .map { (category, list) -> CategorySize(category, list.sumOf { it.uncompressedBytes }, list.size) }
-            .sortedByDescending { it.bytes }
+        // Two running counters per category in a single pass. groupBy() built an ArrayList for every
+        // bucket plus one list holding a reference to every entry (up to 200,000) just to sum two
+        // numbers per bucket; the category totals and their order are identical.
+        val categoryBytes = LinkedHashMap<String, Long>()
+        val categoryCounts = LinkedHashMap<String, Int>()
+        for (entry in entries) {
+            val category = entry.category
+            categoryBytes.merge(category, entry.uncompressedBytes) { a, b -> a + b }
+            categoryCounts.merge(category, 1) { a, b -> a + b }
+        }
+        val byCategory = categoryBytes.map { (category, bytes) ->
+            CategorySize(category, bytes, categoryCounts[category] ?: 0)
+        }.sortedByDescending { it.bytes }
 
         val images = entries.filter { EntryCategory.isImage(it.path) }
         val imageBytes = images.sumOf { it.uncompressedBytes }
@@ -272,7 +282,7 @@ class ApkAnalyzer(private val config: AnalysisConfig = AnalysisConfig()) {
 
         return ResourceFacts(
             entryCount = entries.size,
-            totalUncompressedBytes = entries.sumOf { it.uncompressedBytes },
+            totalUncompressedBytes = categoryBytes.values.sum(),
             byCategory = byCategory,
             imageCount = images.size,
             imageBytes = imageBytes,
@@ -413,9 +423,15 @@ class ApkAnalyzer(private val config: AnalysisConfig = AnalysisConfig()) {
         }
     }
 
+    /** `lib/<abi>/libfoo.so` -> the segment between the first two slashes. */
     private fun abiOf(path: String): String {
-        val parts = path.split('/')
-        return if (parts.size >= 3) parts[1] else "unknown"
+        // `split('/')` allocated an array and a list per native library to read one segment. The
+        // two-slash test keeps the old answer for every path, including the malformed ones.
+        val first = path.indexOf('/')
+        if (first < 0) return "unknown"
+        val second = path.indexOf('/', first + 1)
+        if (second < 0) return "unknown"
+        return path.substring(first + 1, second)
     }
 }
 
@@ -428,11 +444,17 @@ private val TEXT_ASSET_EXTENSIONS = setOf(
     "js", "html", "htm", "csv", "pem", "env", "ini", "kt", "java"
 )
 
+/**
+ * Sizes quoted in warnings and errors.
+ *
+ * Formatting is pinned to [Locale.ROOT]: the default-locale form wrote "1,5 MB" on a device set to
+ * a comma-decimal language, so the same APK produced different text on different phones.
+ */
 internal fun formatBytes(bytes: Long): String {
     if (bytes < 1024) return "$bytes B"
     val kb = bytes / 1024.0
-    if (kb < 1024) return "%.1f KB".format(kb)
+    if (kb < 1024) return String.format(Locale.ROOT, "%.1f KB", kb)
     val mb = kb / 1024.0
-    if (mb < 1024) return "%.1f MB".format(mb)
-    return "%.2f GB".format(mb / 1024.0)
+    if (mb < 1024) return String.format(Locale.ROOT, "%.1f MB", mb)
+    return String.format(Locale.ROOT, "%.2f GB", mb / 1024.0)
 }
