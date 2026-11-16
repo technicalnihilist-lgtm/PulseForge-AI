@@ -38,7 +38,11 @@ object ReportRedactor {
 
     fun redact(text: String): String {
         var out = shapes.replace(text) { match -> mask(match.value) }
-        out = userInfo.replace(out) { "$1***:***$5" }
+        // The transform overload does not expand "$1"/"$5": the previous line replaced every
+        // scheme://user:pass@ with the literal text "$1***:***$5", which also swallowed the '@' and
+        // so lost the host separator. The groups are read explicitly here instead. (The String
+        // overload, which does expand them, is what SecurityRule.maskUrlCredentials uses.)
+        out = userInfo.replace(out) { match -> match.groupValues[1] + "***:***" + match.groupValues[5] }
         out = sensitiveQuery.replace(out) { match -> match.groupValues[1] + mask(match.groupValues[2]) }
         return out
     }
