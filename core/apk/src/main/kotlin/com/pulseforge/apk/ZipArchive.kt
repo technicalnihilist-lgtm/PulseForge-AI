@@ -45,7 +45,18 @@ object EntryCategory {
         }
     }
 
-    fun isImage(path: String): Boolean = path.substringAfterLast('.', "").lowercase() in IMAGE_EXT
+    /**
+     * True when the extension is one of the image ones.
+     *
+     * Only the (short) extension is compared now, ignoring case. This runs for every entry in the
+     * archive - up to 200,000 of them - and the old form lower-cased the whole path, allocating a
+     * second copy of every path string just to look at its last four characters.
+     */
+    fun isImage(path: String): Boolean {
+        val ext = path.substringAfterLast('.', "")
+        if (ext.isEmpty()) return false
+        return IMAGE_EXT.any { it.equals(ext, ignoreCase = true) }
+    }
 }
 
 /**
@@ -105,19 +116,30 @@ class ZipArchive private constructor(
         }
     }
 
-    /** Reads only the first [maxBytes] of an entry, for header sniffing without loading the whole file. */
+    /**
+     * Reads only the first [maxBytes] of an entry, for header sniffing without loading the whole file.
+     *
+     * The buffer is sized to the entry when the central directory says it is smaller than [maxBytes],
+     * so sniffing a 200-byte PNG header no longer allocates - and then copies - a 4 KB array. When the
+     * entry fits exactly, the buffer is returned as is; the bytes handed back are unchanged either way.
+     */
     fun readHead(path: String, maxBytes: Int): ByteArray? {
         val entry = zip.getEntry(path) ?: return null
-        if (entry.isDirectory) return null
+        if (entry.isDirectory || maxBytes <= 0) return null
+        val size = if (entry.size in 1..maxBytes.toLong()) entry.size.toInt() else maxBytes
         zip.getInputStream(entry).use { input ->
-            val buffer = ByteArray(maxBytes)
+            val buffer = ByteArray(size)
             var total = 0
-            while (total < maxBytes) {
-                val read = input.read(buffer, total, maxBytes - total)
+            while (total < size) {
+                val read = input.read(buffer, total, size - total)
                 if (read <= 0) break
                 total += read
             }
-            return if (total == 0) null else buffer.copyOf(total)
+            return when {
+                total == 0 -> null
+                total == size -> buffer
+                else -> buffer.copyOf(total)
+            }
         }
     }
 
@@ -130,7 +152,9 @@ class ZipArchive private constructor(
         if (entry.isDirectory || entry.size > byteLimit) return null
         val digest = MessageDigest.getInstance("SHA-256")
         zip.getInputStream(entry).use { input ->
-            val buffer = ByteArray(32 * 1024)
+            // Reused per thread: a duplicate check allocated its own 32 KB array per entry, and one
+            // scan confirms up to 400 candidates, so this was ~13 MB of short-lived garbage.
+            val buffer = HashBuffers.get()
             while (true) {
                 val read = input.read(buffer)
                 if (read <= 0) break
@@ -214,6 +238,16 @@ class ZipArchive private constructor(
 }
 
 private const val HEX_DIGITS = "0123456789abcdef"
+
+/** One reusable hashing buffer per thread; an archive is read from a single coroutine at a time. */
+private object HashBuffers {
+
+    private const val BUFFER_BYTES = 32 * 1024
+
+    private val buffer = ThreadLocal<ByteArray>()
+
+    fun get(): ByteArray = buffer.get() ?: ByteArray(BUFFER_BYTES).also { buffer.set(it) }
+}
 
 /**
  * Two characters per byte written straight into a char array. The previous version called

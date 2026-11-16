@@ -179,15 +179,26 @@ object DexParser {
             }
     }
 
-    private fun packageRoots(classes: List<String>): List<PackageRoot> = classes
-        .map { packageOf(it) }
-        .filter { it.isNotEmpty() }
-        .groupingBy { it }
-        .eachCount()
-        .entries
-        .sortedByDescending { it.value }
-        .take(15)
-        .map { PackageRoot(prefix = it.key, classCount = it.value) }
+    /**
+     * The 15 package prefixes holding the most classes.
+     *
+     * One pass that counts into a [LinkedHashMap]. The pipeline form built three collections for a
+     * 60,000-class multidex app - a list of every prefix, a filtered copy, then the count map - and
+     * walked the class list three times. Insertion order (and so the tie-break between equal counts)
+     * is first appearance in both versions.
+     */
+    private fun packageRoots(classes: List<String>): List<PackageRoot> {
+        val counts = LinkedHashMap<String, Int>()
+        for (descriptor in classes) {
+            val prefix = packageOf(descriptor)
+            if (prefix.isEmpty()) continue
+            counts.merge(prefix, 1) { a, b -> a + b }
+        }
+        return counts.entries
+            .sortedByDescending { it.value }
+            .take(15)
+            .map { PackageRoot(prefix = it.key, classCount = it.value) }
+    }
 
     private fun packageOf(descriptor: String): String {
         val body = descriptor.removePrefix("L")
